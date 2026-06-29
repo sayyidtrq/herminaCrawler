@@ -1,0 +1,12 @@
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+exports/
+.pytest_cache/
+.ruff_cache/
+.selenium-profile/
+selenium_debug.html
+selenium_debug.png
+.DS_Store

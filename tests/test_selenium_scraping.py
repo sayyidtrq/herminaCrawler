@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.config import Settings
+from app.db.base import Base
+from app.db.models import FetchLog, Review
+from app.services.location_service import LocationService
+from app.services.selenium_fetch_service import SeleniumFetchService
+from app.utils.hashing import generate_selenium_review_hash
+from app.utils.rating_parser import parse_compact_count, parse_rating
+
+
+def make_settings(tmp_path):
+    return Settings(
+        app_env="test",
+        app_name="Hermina Review Intelligence",
+        log_level="INFO",
+        export_dir=tmp_path / "exports",
+        database_url="sqlite+pysqlite:///:memory:",
+        review_source_mode="selenium",
+        google_maps_api_key=None,
+        google_places_language_code="id",
+        google_places_region_code="ID",
+        gemini_mode="mock",
+        gemini_api_key=None,
+        gemini_model="mock",
+        fetch_limit_per_location=50,
+        fetch_timeout_seconds=1,
+        fetch_max_retry=0,
+        selenium_headless=True,
+        selenium_default_target_reviews=100,
+        selenium_max_target_reviews=300,
+        selenium_scroll_delay_seconds=2,
+        selenium_max_scroll_attempts=100,
+        selenium_wait_timeout_seconds=20,
+        selenium_user_data_dir=None,
+        analysis_batch_size=20,
+        prompt_version="v1",
+        page_size=20,
+        show_raw_payload=False,
+    )
+
+
+class FakeSeleniumClient:
+    source_name = "selenium_google_maps"
+
+    def __init__(self):
+        self.last_metadata = {}
+
+    def fetch_reviews(self, location, limit=50):
+        self.last_metadata = {
+            "target_review_count": limit,
+            "loaded_review_cards": 2,
+            "scraped_review_cards": 2,
+            "failed_review_cards": 0,
+            "scroll_attempts": 3,
+            "headless": True,
+            "url": location.google_reviews_url,
+            "stopped_reason": "no_new_review_cards",
+        }
+        scraped_at = datetime.now().astimezone().isoformat()
+        return [
+            {
+                "source": self.source_name,
+                "external_review_id": f"review-{index}",
+                "reviewer_name": name,
+                "reviewer_profile_url": f"https://google.com/maps/contrib/{index}",
+                "reviewer_photo_url": None,
+                "reviewer_local_guide_level": (
+                    "Local Guide" if index == 1 else None
+                ),
+                "reviewer_total_reviews": 37 if index == 1 else None,
+                "rating": rating,
+                "review_text": text,
+                "review_relative_time": "2 minggu lalu",
+                "review_time": None,
+                "review_language": "id",
+                "language": "id",
+                "like_count": index,
+                "owner_response_text": None,
+                "owner_response_time": None,
+                "scraped_at": scraped_at,
+                "raw_payload": {"test": True},
+            }
+            for index, (name, rating, text) in enumerate(
+                [
+                    ("Andi", 5, "Pelayanan baik."),
+                    ("Budi", 2, "Antrean lama."),
+                ],
+                start=1,
+            )
+        ]
+
+
+def test_rating_and_count_parsers():
+    assert parse_rating("5 bintang") == 5
+    assert parse_rating("Rating 4.0") == 4
+    assert parse_rating("unknown") is None
+    assert parse_compact_count("1,2k orang merasa terbantu") == 1200
+    assert parse_compact_count("37 ulasan") == 37
+
+
+def test_selenium_hash_uses_scraping_identity_fields():
+    review = {
+        "source": "selenium_google_maps",
+        "location_id": 1,
+        "reviewer_name": "Andi",
+        "rating": 5,
+        "review_text": "Pelayanan baik.",
+        "review_relative_time": "2 minggu lalu",
+        "reviewer_profile_url": "https://google.com/maps/contrib/1",
+    }
+    assert generate_selenium_review_hash(review) == generate_selenium_review_hash(
+        dict(review)
+    )
+
+
+def test_selenium_fetch_stores_metadata_and_deduplicates(tmp_path):
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    settings = make_settings(tmp_path)
+    location = LocationService(session_factory).add_location(
+        hospital_name="Hermina",
+        branch_name="Hermina Bekasi",
+        city="Bekasi",
+        source="google_places",
+        external_place_id="place-bekasi",
+        google_reviews_url="https://www.google.com/maps/place/example/reviews",
+        target_review_count=2,
+        is_active=True,
+    )
+    service = SeleniumFetchService(
+        session_factory=session_factory,
+        settings=settings,
+        client=FakeSeleniumClient(),
+    )
+
+    first = service.fetch_location(location.id, target=2)
+    second = service.fetch_location(location.id, target=2)
+
+    assert first["status"] == "success"
+    assert first["total_inserted"] == 2
+    assert second["total_duplicate"] == 2
+    with session_factory() as session:
+        assert session.scalar(select(func.count(Review.id))) == 2
+        latest_log = session.scalar(
+            select(FetchLog).order_by(FetchLog.id.desc()).limit(1)
+        )
+        assert latest_log.source == "selenium_google_maps"
+        assert latest_log.metadata_json["scroll_attempts"] == 3

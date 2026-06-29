@@ -1,0 +1,58 @@
+﻿from __future__ import annotations
+
+from fastapi import APIRouter
+
+from app.config import get_settings
+from app.services.settings_service import SettingsService
+from apps.api.app_api.serializers import to_jsonable
+
+
+router = APIRouter(tags=["settings"])
+
+
+@router.get("/settings")
+def get_public_settings() -> dict:
+    settings = get_settings()
+    service = SettingsService(settings)
+    review_source_key = service.check_review_source_key()
+    gemini_key = service.check_gemini_key()
+    return to_jsonable(
+        {
+            "app_env": settings.app_env,
+            "app_name": settings.app_name,
+            "log_level": settings.log_level,
+            "export_dir": settings.export_dir,
+            "review_source_mode": settings.review_source_mode,
+            "google_places_language_code": settings.google_places_language_code,
+            "google_places_region_code": settings.google_places_region_code,
+            "gemini_mode": settings.gemini_mode,
+            "gemini_model": settings.gemini_model,
+            "fetch_limit_per_location": settings.fetch_limit_per_location,
+            "fetch_timeout_seconds": settings.fetch_timeout_seconds,
+            "fetch_max_retry": settings.fetch_max_retry,
+            "selenium_headless": settings.selenium_headless,
+            "selenium_default_target_reviews": (
+                settings.selenium_default_target_reviews
+            ),
+            "selenium_max_target_reviews": settings.selenium_max_target_reviews,
+            "selenium_scroll_delay_seconds": settings.selenium_scroll_delay_seconds,
+            "selenium_max_scroll_attempts": settings.selenium_max_scroll_attempts,
+            "selenium_wait_timeout_seconds": (
+                settings.selenium_wait_timeout_seconds
+            ),
+            "selenium_user_data_dir": settings.selenium_user_data_dir,
+            "analysis_batch_size": settings.analysis_batch_size,
+            "prompt_version": settings.prompt_version,
+            "page_size": settings.page_size,
+            "show_raw_payload": settings.show_raw_payload,
+            "google_maps_api_key": review_source_key["masked"],
+            "gemini_api_key": gemini_key["masked"],
+            "google_maps_api_key_configured": review_source_key["found"],
+            "gemini_api_key_configured": gemini_key["found"],
+        }
+    )
+
+
+@router.get("/settings/database-check")
+def check_database_connection() -> dict:
+    return to_jsonable(SettingsService().check_database_connection())

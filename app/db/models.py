@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base
+
+
+JsonType = JSON().with_variant(JSONB, "postgresql")
+
+
+class Location(Base):
+    __tablename__ = "locations"
+    __table_args__ = (
+        UniqueConstraint(
+            "source", "external_place_id", name="uq_locations_source_place"
+        ),
+        Index("idx_locations_source_place", "source", "external_place_id"),
+        Index("idx_locations_active", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hospital_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    branch_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    city: Mapped[str | None] = mapped_column(String(100))
+    address: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    external_place_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    google_maps_url: Mapped[str | None] = mapped_column(Text)
+    google_reviews_url: Mapped[str | None] = mapped_column(Text)
+    target_review_count: Mapped[int] = mapped_column(
+        Integer, default=100, nullable=False
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    reviews: Mapped[list["Review"]] = relationship(
+        back_populates="location", cascade="all, delete-orphan"
+    )
+    fetch_logs: Mapped[list["FetchLog"]] = relationship(
+        back_populates="location", cascade="all, delete-orphan"
+    )
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "rating IS NULL OR (rating >= 1 AND rating <= 5)",
+            name="ck_reviews_rating",
+        ),
+        Index("idx_reviews_location_id", "location_id"),
+        Index("idx_reviews_review_time", "review_time"),
+        Index("idx_reviews_rating", "rating"),
+        Index("idx_reviews_review_hash", "review_hash"),
+        Index("idx_reviews_source_place", "source", "external_place_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    location_id: Mapped[int] = mapped_column(
+        ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
+    )
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    external_place_id: Mapped[str | None] = mapped_column(String(255))
+    external_review_id: Mapped[str | None] = mapped_column(String(255))
+    reviewer_name: Mapped[str | None] = mapped_column(String(255))
+    reviewer_profile_url: Mapped[str | None] = mapped_column(Text)
+    reviewer_photo_url: Mapped[str | None] = mapped_column(Text)
+    reviewer_local_guide_level: Mapped[str | None] = mapped_column(String(100))
+    reviewer_total_reviews: Mapped[int | None] = mapped_column(Integer)
+    rating: Mapped[int | None] = mapped_column(Integer)
+    review_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    review_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_relative_time: Mapped[str | None] = mapped_column(String(100))
+    review_language: Mapped[str | None] = mapped_column(String(20))
+    language: Mapped[str | None] = mapped_column(String(20))
+    like_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    owner_response_text: Mapped[str | None] = mapped_column(Text)
+    owner_response_time: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    raw_payload: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
+    review_hash: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    location: Mapped[Location] = relationship(back_populates="reviews")
+    analyses: Mapped[list["ReviewAnalysis"]] = relationship(
+        back_populates="review", cascade="all, delete-orphan"
+    )
+
+
+class ReviewAnalysis(Base):
+    __tablename__ = "review_analysis"
+    __table_args__ = (
+        Index("idx_review_analysis_review_id", "review_id"),
+        Index("idx_review_analysis_sentiment", "sentiment"),
+        Index("idx_review_analysis_issue_category", "issue_category"),
+        Index("idx_review_analysis_urgency", "urgency"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    review_id: Mapped[int] = mapped_column(
+        ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False
+    )
+    sentiment: Mapped[str | None] = mapped_column(String(50))
+    sentiment_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    issue_category: Mapped[str | None] = mapped_column(String(100))
+    urgency: Mapped[str | None] = mapped_column(String(50))
+    summary: Mapped[str | None] = mapped_column(Text)
+    recommended_action: Mapped[str | None] = mapped_column(Text)
+    keywords: Mapped[list] = mapped_column(JsonType, default=list, nullable=False)
+    is_potential_viral: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    is_patient_safety_issue: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    model_name: Mapped[str | None] = mapped_column(String(100))
+    prompt_version: Mapped[str | None] = mapped_column(String(50))
+    raw_response: Mapped[dict] = mapped_column(
+        JsonType, default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    review: Mapped[Review] = relationship(back_populates="analyses")
+
+
+class FetchLog(Base):
+    __tablename__ = "fetch_logs"
+    __table_args__ = (
+        Index("idx_fetch_logs_location_id", "location_id"),
+        Index("idx_fetch_logs_status", "status"),
+        Index("idx_fetch_logs_started_at", "started_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    location_id: Mapped[int] = mapped_column(
+        ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
+    )
+    source: Mapped[str | None] = mapped_column(String(50))
+    status: Mapped[str | None] = mapped_column(String(50))
+    total_fetched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_inserted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_duplicate: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    total_failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict] = mapped_column(
+        "metadata", JsonType, default=dict, nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    location: Mapped[Location] = relationship(back_populates="fetch_logs")

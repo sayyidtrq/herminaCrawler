@@ -10,3 +10,4 @@ exports/
 selenium_debug.html
 selenium_debug.png
 .DS_Store
+create_tables.sql

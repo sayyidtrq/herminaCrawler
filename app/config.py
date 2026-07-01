@@ -43,6 +43,9 @@ class Settings:
     gemini_mode: str
     gemini_api_key: str | None
     gemini_model: str
+    analysis_provider: str
+    openrouter_api_key: str | None
+    openrouter_model: str
     fetch_limit_per_location: int
     fetch_timeout_seconds: int
     fetch_max_retry: int
@@ -82,6 +85,10 @@ def get_settings() -> Settings:
     if gemini_mode not in {"mock", "real"}:
         raise ValueError("GEMINI_MODE must be mock or real.")
 
+    analysis_provider = os.getenv("ANALYSIS_PROVIDER", "gemini").strip().lower()
+    if analysis_provider not in {"mock", "gemini", "openrouter"}:
+        raise ValueError("ANALYSIS_PROVIDER must be mock, gemini, or openrouter.")
+
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise ValueError("DATABASE_URL is required in .env.")
@@ -117,6 +124,11 @@ def get_settings() -> Settings:
         gemini_mode=gemini_mode,
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+        analysis_provider=analysis_provider,
+        openrouter_api_key=os.getenv("OPENROUTER_API_KEY") or None,
+        openrouter_model=os.getenv(
+            "OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct"
+        ).strip(),
         fetch_limit_per_location=_as_int("FETCH_LIMIT_PER_LOCATION", 50),
         fetch_timeout_seconds=_as_int("FETCH_TIMEOUT_SECONDS", 30),
         fetch_max_retry=_as_int("FETCH_MAX_RETRY", 3),

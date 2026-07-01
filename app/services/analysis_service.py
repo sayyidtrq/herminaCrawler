@@ -10,6 +10,7 @@ from app.db.models import Review, ReviewAnalysis
 from app.db.session import get_session_factory
 from app.integrations.gemini_client import GeminiClient, GeminiClientBase
 from app.integrations.mock_gemini_client import MockGeminiClient
+from app.integrations.openrouter_client import OpenRouterClient
 
 
 logger = logging.getLogger(__name__)
@@ -46,11 +47,14 @@ class AnalysisService:
     ):
         self.session_factory = session_factory or get_session_factory()
         self.settings = settings or get_settings()
-        self.client = client or (
-            MockGeminiClient()
-            if self.settings.gemini_mode == "mock"
-            else GeminiClient(self.settings)
-        )
+        if client:
+            self.client = client
+        elif self.settings.analysis_provider == "openrouter":
+            self.client = OpenRouterClient(self.settings)
+        elif self.settings.analysis_provider == "gemini":
+            self.client = GeminiClient(self.settings)
+        else:
+            self.client = MockGeminiClient()
 
     def analyze_pending(
         self, location_id: int | None = None, rating: int | None = None

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from fastapi import APIRouter
 
@@ -15,7 +15,7 @@ def get_public_settings() -> dict:
     settings = get_settings()
     service = SettingsService(settings)
     review_source_key = service.check_review_source_key()
-    gemini_key = service.check_gemini_key()
+    local_llm_key = service.check_local_llm_key()
     return to_jsonable(
         {
             "app_env": settings.app_env,
@@ -25,8 +25,7 @@ def get_public_settings() -> dict:
             "review_source_mode": settings.review_source_mode,
             "google_places_language_code": settings.google_places_language_code,
             "google_places_region_code": settings.google_places_region_code,
-            "gemini_mode": settings.gemini_mode,
-            "gemini_model": settings.gemini_model,
+            "local_llm_model": settings.local_llm_model,
             "fetch_limit_per_location": settings.fetch_limit_per_location,
             "fetch_timeout_seconds": settings.fetch_timeout_seconds,
             "fetch_max_retry": settings.fetch_max_retry,
@@ -46,9 +45,9 @@ def get_public_settings() -> dict:
             "page_size": settings.page_size,
             "show_raw_payload": settings.show_raw_payload,
             "google_maps_api_key": review_source_key["masked"],
-            "gemini_api_key": gemini_key["masked"],
+            "local_llm_api_key": local_llm_key["masked"],
             "google_maps_api_key_configured": review_source_key["found"],
-            "gemini_api_key_configured": gemini_key["found"],
+            "local_llm_api_key_configured": local_llm_key["found"],
         }
     )
 

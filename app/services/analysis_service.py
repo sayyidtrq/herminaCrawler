@@ -8,9 +8,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings, get_settings
 from app.db.models import Review, ReviewAnalysis
 from app.db.session import get_session_factory
-from app.integrations.gemini_client import GeminiClient, GeminiClientBase
-from app.integrations.mock_gemini_client import MockGeminiClient
-from app.integrations.openrouter_client import OpenRouterClient
+from app.integrations.gemini_client import GeminiClientBase
+from app.integrations.local_llm_client import LocalLLMClient
 
 
 logger = logging.getLogger(__name__)
@@ -49,12 +48,8 @@ class AnalysisService:
         self.settings = settings or get_settings()
         if client:
             self.client = client
-        elif self.settings.analysis_provider == "openrouter":
-            self.client = OpenRouterClient(self.settings)
-        elif self.settings.analysis_provider == "gemini":
-            self.client = GeminiClient(self.settings)
         else:
-            self.client = MockGeminiClient()
+            self.client = LocalLLMClient(self.settings)
 
     def analyze_pending(
         self, location_id: int | None = None, rating: int | None = None

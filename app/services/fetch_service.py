@@ -29,14 +29,16 @@ logger = logging.getLogger(__name__)
 class FetchService:
     def __init__(
         self,
+        company_id: int | None = None,
         session_factory: sessionmaker[Session] | None = None,
         settings: Settings | None = None,
         client: ReviewSourceClient | None = None,
     ):
+        self.company_id = company_id
         self.settings = settings or get_settings()
-        self.location_service = LocationService(session_factory)
-        self.review_service = ReviewService(session_factory)
-        self.fetch_log_service = FetchLogService(session_factory)
+        self.location_service = LocationService(company_id=company_id, session_factory=session_factory)
+        self.review_service = ReviewService(company_id=company_id, session_factory=session_factory)
+        self.fetch_log_service = FetchLogService(company_id=company_id, session_factory=session_factory)
         self.client = client or self._build_client()
 
     def _build_client(self) -> ReviewSourceClient:

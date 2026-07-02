@@ -9,42 +9,61 @@ from app.services.review_service import latest_analysis_subquery
 
 
 class SummaryService:
-    def __init__(self, session_factory: sessionmaker[Session] | None = None):
+    def __init__(self, company_id: int | None = None, session_factory: sessionmaker[Session] | None = None):
+        self.company_id = company_id
         self.session_factory = session_factory or get_session_factory()
 
     def overall_summary(self) -> dict:
         latest = latest_analysis_subquery()
         with self.session_factory() as session:
-            total_locations = int(
-                session.scalar(select(func.count(Location.id))) or 0
-            )
-            total_reviews = int(session.scalar(select(func.count(Review.id))) or 0)
-            analyzed = int(
-                session.scalar(select(func.count()).select_from(latest)) or 0
-            )
-            sentiment_rows = session.execute(
+            location_count_stmt = select(func.count(Location.id))
+            if self.company_id is not None:
+                location_count_stmt = location_count_stmt.where(Location.company_id == self.company_id)
+            total_locations = int(session.scalar(location_count_stmt) or 0)
+
+            review_count_stmt = select(func.count(Review.id))
+            if self.company_id is not None:
+                review_count_stmt = review_count_stmt.where(Review.company_id == self.company_id)
+            total_reviews = int(session.scalar(review_count_stmt) or 0)
+
+            analyzed_stmt = select(func.count()).select_from(latest)
+            if self.company_id is not None:
+                analyzed_stmt = analyzed_stmt.join(Review, Review.id == latest.c.review_id).where(Review.company_id == self.company_id)
+            analyzed = int(session.scalar(analyzed_stmt) or 0)
+
+            sentiment_stmt = (
                 select(ReviewAnalysis.sentiment, func.count(ReviewAnalysis.id))
                 .join(latest, latest.c.analysis_id == ReviewAnalysis.id)
-                .group_by(ReviewAnalysis.sentiment)
-            ).all()
-            issue_rows = session.execute(
-                select(
-                    ReviewAnalysis.issue_category, func.count(ReviewAnalysis.id)
-                )
+            )
+            if self.company_id is not None:
+                sentiment_stmt = sentiment_stmt.join(Review, Review.id == ReviewAnalysis.review_id).where(Review.company_id == self.company_id)
+            sentiment_rows = session.execute(sentiment_stmt.group_by(ReviewAnalysis.sentiment)).all()
+
+            issue_stmt = (
+                select(ReviewAnalysis.issue_category, func.count(ReviewAnalysis.id))
                 .join(latest, latest.c.analysis_id == ReviewAnalysis.id)
-                .group_by(ReviewAnalysis.issue_category)
+            )
+            if self.company_id is not None:
+                issue_stmt = issue_stmt.join(Review, Review.id == ReviewAnalysis.review_id).where(Review.company_id == self.company_id)
+            issue_rows = session.execute(
+                issue_stmt.group_by(ReviewAnalysis.issue_category)
                 .order_by(func.count(ReviewAnalysis.id).desc())
                 .limit(5)
             ).all()
-            critical_count = int(
-                session.scalar(
-                    select(func.count(ReviewAnalysis.id))
-                    .join(latest, latest.c.analysis_id == ReviewAnalysis.id)
-                    .where(ReviewAnalysis.urgency.in_(["high", "critical"]))
-                )
-                or 0
+
+            critical_stmt = (
+                select(func.count(ReviewAnalysis.id))
+                .join(latest, latest.c.analysis_id == ReviewAnalysis.id)
+                .where(ReviewAnalysis.urgency.in_(["high", "critical"]))
             )
-            latest_fetch = session.scalar(select(func.max(FetchLog.finished_at)))
+            if self.company_id is not None:
+                critical_stmt = critical_stmt.join(Review, Review.id == ReviewAnalysis.review_id).where(Review.company_id == self.company_id)
+            critical_count = int(session.scalar(critical_stmt) or 0)
+
+            fetch_stmt = select(func.max(FetchLog.finished_at))
+            if self.company_id is not None:
+                fetch_stmt = fetch_stmt.where(FetchLog.company_id == self.company_id)
+            latest_fetch = session.scalar(fetch_stmt)
 
         sentiments = {
             "positive": 0,
@@ -69,7 +88,7 @@ class SummaryService:
         latest = latest_analysis_subquery()
         with self.session_factory() as session:
             location = session.get(Location, location_id)
-            if location is None:
+            if location is None or (self.company_id is not None and location.company_id != self.company_id):
                 raise ValueError("Location not found.")
             total_reviews, average_rating = session.execute(
                 select(func.count(Review.id), func.avg(Review.rating)).where(
@@ -161,6 +180,8 @@ class SummaryService:
             .where(ReviewAnalysis.urgency.in_(["high", "critical"]))
             .order_by(ReviewAnalysis.urgency, Review.id.desc())
         )
+        if self.company_id is not None:
+            statement = statement.where(Review.company_id == self.company_id)
         with self.session_factory() as session:
             return [
                 {
@@ -184,6 +205,8 @@ class SummaryService:
             .where(ReviewAnalysis.sentiment == "negative")
             .order_by(Review.id.desc())
         )
+        if self.company_id is not None:
+            statement = statement.where(Review.company_id == self.company_id)
         with self.session_factory() as session:
             return [
                 {
@@ -195,4 +218,3 @@ class SummaryService:
                 }
                 for review, location_name, analysis in session.execute(statement)
             ]
-

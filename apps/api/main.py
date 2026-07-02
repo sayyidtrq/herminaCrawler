@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +15,9 @@ from apps.api.app_api.routers import (
     pipeline,
     reviews,
     settings,
+    auth,
+    places,
+    competitors,
 )
 
 
@@ -38,6 +41,9 @@ def create_app() -> FastAPI:
     )
     register_exception_handlers(app)
     app.include_router(health.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
+    app.include_router(places.router, prefix="/api")
+    app.include_router(competitors.router, prefix="/api")
     app.include_router(settings.router, prefix="/api")
     app.include_router(locations.router, prefix="/api")
     app.include_router(reviews.router, prefix="/api")

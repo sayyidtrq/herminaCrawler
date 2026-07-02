@@ -10,7 +10,8 @@ from app.db.session import get_session_factory
 
 
 class FetchLogService:
-    def __init__(self, session_factory: sessionmaker[Session] | None = None):
+    def __init__(self, company_id: int | None = None, session_factory: sessionmaker[Session] | None = None):
+        self.company_id = company_id
         self.session_factory = session_factory or get_session_factory()
 
     def start_log(
@@ -18,6 +19,7 @@ class FetchLogService:
     ) -> int:
         with self.session_factory() as session:
             log = FetchLog(
+                company_id=self.company_id,
                 location_id=location_id,
                 source=source,
                 status="started",
@@ -52,6 +54,7 @@ class FetchLogService:
         with self.session_factory() as session:
             session.add(
                 FetchLog(
+                    company_id=self.company_id,
                     location_id=location_id,
                     source=source,
                     status="dry_run",
@@ -75,6 +78,8 @@ class FetchLogService:
             .order_by(FetchLog.started_at.desc(), FetchLog.id.desc())
             .limit(limit)
         )
+        if self.company_id is not None:
+            statement = statement.where(FetchLog.company_id == self.company_id)
         if location_id is not None:
             statement = statement.where(FetchLog.location_id == location_id)
         if failed_only:

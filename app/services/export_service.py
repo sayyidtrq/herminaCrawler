@@ -20,13 +20,15 @@ logger = logging.getLogger(__name__)
 class ExportService:
     def __init__(
         self,
+        company_id: int | None = None,
         session_factory: sessionmaker[Session] | None = None,
         settings: Settings | None = None,
     ):
+        self.company_id = company_id
         self.settings = settings or get_settings()
-        self.review_service = ReviewService(session_factory)
-        self.location_service = LocationService(session_factory)
-        self.summary_service = SummaryService(session_factory)
+        self.review_service = ReviewService(company_id=company_id, session_factory=session_factory)
+        self.location_service = LocationService(company_id=company_id, session_factory=session_factory)
+        self.summary_service = SummaryService(company_id=company_id, session_factory=session_factory)
 
     def export_all_reviews_csv(self) -> Path:
         rows = self.review_service.get_all_export_rows()

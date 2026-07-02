@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.config import get_settings
+from app.db.models import User
 from app.services.settings_service import SettingsService
+from apps.api.app_api.dependencies import get_current_user
 from apps.api.app_api.serializers import to_jsonable
 
 
@@ -11,7 +13,7 @@ router = APIRouter(tags=["settings"])
 
 
 @router.get("/settings")
-def get_public_settings() -> dict:
+def get_public_settings(current_user: User = Depends(get_current_user)) -> dict:
     settings = get_settings()
     service = SettingsService(settings)
     review_source_key = service.check_review_source_key()
@@ -53,5 +55,5 @@ def get_public_settings() -> dict:
 
 
 @router.get("/settings/database-check")
-def check_database_connection() -> dict:
+def check_database_connection(current_user: User = Depends(get_current_user)) -> dict:
     return to_jsonable(SettingsService().check_database_connection())

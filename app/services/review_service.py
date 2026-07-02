@@ -20,20 +20,26 @@ def latest_analysis_subquery():
 
 
 class ReviewService:
-    def __init__(self, session_factory: sessionmaker[Session] | None = None):
+    def __init__(self, company_id: int | None = None, session_factory: sessionmaker[Session] | None = None):
+        self.company_id = company_id
         self.session_factory = session_factory or get_session_factory()
 
     def review_hash_exists(self, review_hash: str) -> bool:
         with self.session_factory() as session:
             statement = select(Review.id).where(Review.review_hash == review_hash)
+            if self.company_id is not None:
+                statement = statement.where(Review.company_id == self.company_id)
             return session.scalar(statement) is not None
 
     def insert_review(self, data: dict) -> tuple[Review | None, bool]:
+        if self.company_id is not None and "company_id" not in data:
+            data["company_id"] = self.company_id
         review = Review(**data)
         with self.session_factory() as session:
-            existing = session.scalar(
-                select(Review.id).where(Review.review_hash == review.review_hash)
-            )
+            statement = select(Review.id).where(Review.review_hash == review.review_hash)
+            if self.company_id is not None:
+                statement = statement.where(Review.company_id == self.company_id)
+            existing = session.scalar(statement)
             if existing is not None:
                 return None, True
             try:
@@ -43,9 +49,7 @@ class ReviewService:
                 return review, False
             except IntegrityError:
                 session.rollback()
-                existing = session.scalar(
-                    select(Review.id).where(Review.review_hash == review.review_hash)
-                )
+                existing = session.scalar(statement)
                 if existing is not None:
                     return None, True
                 raise
@@ -60,6 +64,8 @@ class ReviewService:
                 .outerjoin(ReviewAnalysis, ReviewAnalysis.id == latest.c.analysis_id)
                 .where(Review.id == review_id)
             )
+            if self.company_id is not None:
+                statement = statement.where(Review.company_id == self.company_id)
             row = session.execute(statement).first()
             return self._row_to_dict(row) if row else None
 
@@ -99,6 +105,10 @@ class ReviewService:
             pattern = f"%{keyword}%"
             statement = statement.where(Review.review_text.ilike(pattern))
             count_statement = count_statement.where(Review.review_text.ilike(pattern))
+
+        if self.company_id is not None:
+            statement = statement.where(Review.company_id == self.company_id)
+            count_statement = count_statement.where(Review.company_id == self.company_id)
 
         if latest_first:
             statement = statement.order_by(

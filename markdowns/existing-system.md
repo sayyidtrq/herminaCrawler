@@ -1,7 +1,5 @@
 # Existing System - Hermina Review Intelligence
 
-Tanggal audit: 2026-07-02
-
 Dokumen ini merangkum kondisi sistem berdasarkan codebase saat ini. Fokusnya adalah modul yang sudah ada, alur data, batasan implementasi, dan gap menuju pengembangan Voice of Customer V2.
 
 ## 1. Ringkasan Sistem
@@ -18,8 +16,8 @@ Hermina Review Intelligence saat ini adalah sistem review intelligence berbasis 
 - Local LLM client berbasis OpenAI-compatible API untuk analisis review,
 - terminal app legacy melalui `python main.py`.
 
-Secara arsitektur, sistem sudah bergerak dari terminal-only MVP menjadi web MVP dengan API. Core logic tetap berada di folder `app/`, sedangkan API wrapper berada di `apps/api/` dan frontend berada di `hermina-crawler-fe/`.
-
+``Secara arsitektur, sistem sudah bergerak dari terminal-only MVP menjadi web MVP dengan API. Core logic tetap berada di folder `app/`, sedangkan API wrapper berada di `apps/api/` dan frontend berada di `hermina-crawler-fe/`.
+``
 ## 2. Struktur Codebase
 
 ```text

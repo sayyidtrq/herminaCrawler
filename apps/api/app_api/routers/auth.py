@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from passlib.context import CryptContext
@@ -30,6 +30,13 @@ class CompanyRegisterRequest(BaseModel):
     ai_enable_flag: bool = False
     total_enable_review: int = 100
     analyze_competitor_flag: bool = False
+
+    @field_validator("admin_password")
+    @classmethod
+    def validate_bcrypt_password_length(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be 72 bytes or fewer.")
+        return value
 
 class TokenResponse(BaseModel):
     access_token: str

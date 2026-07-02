@@ -56,48 +56,74 @@ Output utama:
 - Feature entitlement per profile.
 - Analyze competitor.
 - Heatmap/map lokasi review dan summary rating.
-- Connector website crawler berbasis Firecrawl.
-- Connector Selenium sebagai fallback untuk web dinamis.
+- Preparation website crawler berbasis Firecrawl sebagai backlog future/hold.
+- Connector Selenium tetap dipakai untuk Google Maps/public dynamic page yang diizinkan, tanpa dijadikan feature flag terpisah.
 - Fondasi taxonomy VoC.
 
 ## 3. Prinsip Desain Sistem
 
 1. Core existing tetap dipakai.
-2. Scraper/crawler dipisah sebagai connector dan worker, bukan logic UI.
-3. Onebox/VoC app hanya memanggil API/job, tidak menjalankan Selenium langsung dari request UI.
+2. Untuk V2, Selenium masih boleh dijalankan langsung oleh backend seperti existing system. Namun struktur code tetap disiapkan sebagai connector agar nanti mudah dipindah ke worker.
+3. Integrasi Onebox belum masuk scope V2. Aplikasi VoC V2 cukup memanggil backend API lokal untuk menjalankan fetch/crawl. Preparation untuk Onebox disiapkan dalam bentuk API contract, job payload, status response, dan profile/source mapping.
 4. Semua source data masuk ke canonical review schema.
 5. AI analysis harus versioned dan auditable.
 6. Feature entitlement harus berbasis profile/subscription.
-7. Long-running job harus masuk queue.
+7. Long-running job idealnya masuk queue, tetapi untuk V2 MVP masih boleh synchronous/manual seperti existing. Queue/worker menjadi preparation dan target hardening setelah V2 stabil.
 8. Auth dan multi-tenant harus disiapkan sebelum produk dipakai banyak organisasi.
 9. Scraping harus legal, terkontrol, dan tidak melakukan bypass auth/CAPTCHA/token.
+10. Dokumen integrasi Onebox akan dipisah menjadi integration design setelah scope V2 selesai.
 
 ## 4. High-Level Architecture V2
 
+V2 current target:
+
 ```text
-Web App / Onebox UI
+VoC Web App
   |
   | REST API
   v
-API Server
+FastAPI Backend
   |
-  | create jobs, read data, enforce auth/profile flags
+  | synchronous/manual fetch for MVP
   v
 Core Domain Services
+  |-- LocationService
+  |-- FetchService
+  |-- SeleniumFetchService
+  |-- ReviewService
+  |-- AnalysisService
+  |-- SummaryService
   |
-  | enqueue long-running work
+  v
+Connector Layer
+  |-- Google Places Connector
+  |-- Selenium Google Maps Connector
+  |-- Future Website Connector
+  |-- Future App Store / Play Store Connector
+  |
+  v
+PostgreSQL
+  |
+  v
+Dashboard / Review Inbox / Reports / Map
+```
+
+Future Onebox integration target:
+
+```text
+Onebox
+  |
+  | API contract / job payload
+  v
+VoC API Gateway
+  |
   v
 Job Queue
   |
   v
 Worker Layer
-  |-- Google Places Connector
-  |-- Google Business Profile Connector (future official)
-  |-- Selenium Google Maps Connector
-  |-- Firecrawl Website Connector
-  |-- Play Store Connector
-  |-- App Store Connector
-  |-- Social/Public Web Connector
+  |-- Selenium Worker
+  |-- Website Crawl Worker
   |-- AI Analysis Worker
   |-- Export Worker
   |
@@ -105,7 +131,7 @@ Worker Layer
 PostgreSQL
   |
   v
-Dashboard / Reports / Map / Action Tracker
+Onebox Inbox / VoC Dashboard / Supervisor Reports
 ```
 
 ## 5. Existing Core Yang Dipakai Ulang
@@ -153,7 +179,7 @@ Role awal:
 
 Scope role:
 
-- `super_admin`: manage semua profile dan feature entitlement.
+- `super_admin`: manage semua profile dan feature entitlement, serta dapat mengakses seluruh fitur operasional agent untuk support/debugging.
 - `org_admin`: manage profile sendiri, user, source, dan settings.
 - `manager`: dashboard, insights, action tracker.
 - `agent`: review inbox dan action handling.
@@ -190,10 +216,8 @@ Parameter benefit awal:
 - `total_enable_review`
 - `analyze_competitor_flag`
 
-Tambahan yang disarankan:
+Tambahan yang disarankan untuk V2:
 
-- `website_crawler_enable_flag`
-- `selenium_enable_flag`
 - `map_heatmap_enable_flag`
 - `export_enable_flag`
 - `max_locations`
@@ -201,22 +225,30 @@ Tambahan yang disarankan:
 - `analysis_monthly_quota`
 - `retention_days`
 
+Catatan benefit:
+
+- Firecrawl/website crawler belum dimasukkan sebagai benefit aktif karena mekanisme dan implementasinya belum matang. Flag website crawler ditahan dulu sampai connector siap.
+- Selenium tidak perlu dibuat sebagai benefit flag karena untuk fase ini Selenium boleh dipakai oleh semua profile yang memiliki akses review crawling.
+
 ### 6.3 Source Management
 
 Source management memisahkan konfigurasi channel dari location.
 
-Source type:
+Source type V2 aktif:
 
 - `google_places`
 - `google_maps_selenium`
-- `google_business_profile`
-- `website_firecrawl`
-- `website_selenium`
-- `play_store`
-- `app_store`
+- `google_business_profile` future official
 - `csat`
 - `survey`
 - `csv_import`
+
+Source type future/hold:
+
+- `website_firecrawl` hold sampai mekanisme Firecrawl matang
+- `website_selenium` hold untuk website publik dinamis
+- `play_store`
+- `app_store`
 - `social_public_web`
 
 Field source:
@@ -253,7 +285,61 @@ Tujuan:
 - mendukung heatmap,
 - mendukung drilldown wilayah,
 - mendukung comparison antar cabang,
-- mendukung competitor location.
+- mendukung competitor location,
+- mempercepat user saat mendaftarkan lokasi baru.
+
+#### Location Discovery UX
+
+Saat user login sebagai company, misalnya Hermina, halaman Add Location sebaiknya tidak hanya menyediakan form kosong. Sistem perlu membantu user menemukan daftar lokasi/cabang dari sumber eksternal.
+
+Flow yang disarankan:
+
+```text
+User buka Add Location
+  -> pilih profile/company aktif
+  -> input keyword awal, contoh "Hermina" atau "RS Hermina"
+  -> backend memanggil external place search API
+  -> sistem menampilkan daftar kandidat lokasi di Indonesia
+  -> user memilih kandidat
+  -> form auto-filled: branch name, address, city, lat/lng, place id, Google Maps URL
+  -> user review data dan save
+```
+
+Data kandidat lokasi minimal:
+
+- nama lokasi,
+- alamat,
+- kota/provinsi jika tersedia,
+- latitude/longitude,
+- external place id,
+- Google Maps URL,
+- rating summary jika tersedia,
+- total review summary jika tersedia,
+- source provider.
+
+Catatan implementasi:
+
+- Untuk MVP, discovery bisa memakai Google Places search/autocomplete jika API key tersedia.
+- Jika API key belum tersedia, fallback UX bisa berupa manual input plus helper untuk paste Google Maps URL.
+- Hasil discovery tidak langsung disimpan massal. User tetap harus memilih kandidat untuk menghindari duplicate/noise.
+- Sistem perlu duplicate detection berdasarkan source + external place id dan juga fuzzy branch name/address.
+
+#### Improvement UX Location Management
+
+Saran peningkatan UX:
+
+- search location by external provider saat add location,
+- map preview setelah user memilih kandidat,
+- duplicate warning sebelum save,
+- bulk import CSV/XLSX untuk banyak lokasi,
+- bulk activate/deactivate,
+- data quality badge untuk lokasi yang belum punya lat/lng/place id/URL,
+- source health per location,
+- last fetch status dan latest rating summary di table,
+- default target review count per profile,
+- default crawl date range per profile,
+- archive location dibanding delete permanen untuk data production,
+- quick action: fetch now, view reviews, open maps, edit source.
 
 ### 6.5 Review Inbox
 
@@ -286,6 +372,28 @@ Status handling:
 - `resolved`
 - `ignored`
 - `archived`
+
+#### Review Date And Crawl Range
+
+Review dan crawling perlu memiliki parameter tanggal agar data yang diambil lebih terstruktur dan volume scraping lebih terkendali.
+
+Preset tanggal yang disarankan:
+
+- hari ini,
+- 1 hari terakhir,
+- 7 hari terakhir,
+- 30 hari terakhir,
+- bulan ini,
+- custom date range.
+
+Behavior yang disarankan:
+
+- Review Inbox menampilkan tanggal review secara jelas di table dan detail panel.
+- Fetch/Crawl Jobs menyediakan date range sebelum menjalankan crawl.
+- Jika source mendukung filter tanggal secara native/API, backend memakai filter native.
+- Jika source tidak mendukung filter tanggal, backend tetap crawl dengan target terbatas lalu melakukan post-filter berdasarkan tanggal review yang berhasil diekstrak.
+- Untuk Selenium Google Maps, tanggal absolut sering tidak tersedia dan bisa berupa relative time seperti "1 hari lalu" atau "seminggu lalu". Sistem perlu parser relative date dan metadata confidence.
+- Date range harus disimpan di crawl job metadata agar audit fetch jelas.
 
 ### 6.6 AI Analysis V2
 
@@ -411,9 +519,9 @@ Map library option:
 
 Rekomendasi MVP: Leaflet + OpenStreetMap tiles untuk internal demo.
 
-### 6.10 Website Crawler Dengan Firecrawl
+### 6.10 Website Crawler Dengan Firecrawl (Future / Hold)
 
-Firecrawl digunakan untuk website publik yang tidak membutuhkan login.
+Firecrawl adalah kandidat untuk website publik yang tidak membutuhkan login. Untuk V2 saat ini, fitur ini ditahan dulu dan tidak menjadi benefit aktif karena mekanisme implementasinya belum matang. Section ini disimpan sebagai preparation/future design.
 
 Use case:
 
@@ -499,8 +607,6 @@ status
 ai_enable_flag
 total_enable_review
 analyze_competitor_flag
-website_crawler_enable_flag
-selenium_enable_flag
 map_heatmap_enable_flag
 export_enable_flag
 max_locations
@@ -510,6 +616,8 @@ retention_days
 created_at
 updated_at
 ```
+
+Catatan schema: website crawler/Firecrawl flag dan Selenium flag tidak dimasukkan ke profile V2. Firecrawl ditahan, sedangkan Selenium menjadi kapabilitas default crawler selama profile memiliki akses review crawling.
 
 ### 7.2 users
 
@@ -733,6 +841,8 @@ created_at
 
 ### 8.4 Reviews
 
+Endpoints:
+
 - `GET /api/reviews`
 - `GET /api/reviews/{review_id}`
 - `PATCH /api/reviews/{review_id}/handling`
@@ -740,9 +850,26 @@ created_at
 - `POST /api/reviews/{review_id}/notes`
 - `POST /api/reviews/{review_id}/create-action`
 
+Filter tambahan V2 untuk reviews:
+
+- `date_preset=today|last_1_day|last_7_days|last_30_days|this_month|custom`
+- `date_from`
+- `date_to`
+- `review_time_mode=absolute|relative|scraped_at`
+
 ### 8.5 Crawl Jobs
 
 - `POST /api/crawl-jobs`
+
+Payload tambahan V2 untuk crawl jobs:
+
+- `date_preset`
+- `date_from`
+- `date_to`
+- `target_review_count`
+- `post_filter_by_review_date`
+
+Endpoints:
 - `POST /api/crawl-jobs/all-active`
 - `GET /api/crawl-jobs`
 - `GET /api/crawl-jobs/{job_id}`
@@ -923,10 +1050,11 @@ Recommended additional requests for stakeholder discussion:
 ### Phase 2 - Source Expansion
 
 - Source Management page.
-- Firecrawl website connector.
-- Selenium website fallback abstraction.
-- Crawl job entity.
-- Queue/worker split for long-running jobs.
+- Google Places/Selenium Google Maps source hardening.
+- Crawl job entity sebagai preparation.
+- Date range crawl parameter.
+- Firecrawl website connector masuk backlog future/hold, bukan target wajib V2.
+- Queue/worker split menjadi target hardening setelah V2 stabil.
 
 ### Phase 3 - VoC Intelligence
 
@@ -1038,7 +1166,7 @@ Urutan terbaik:
 2. Tambahkan entitlement/benefit flags.
 3. Ubah crawler menjadi job-based worker.
 4. Tambahkan source management.
-5. Tambahkan Firecrawl connector.
+5. Siapkan backlog Firecrawl connector sebagai future integration setelah V2 stabil.
 6. Tambahkan taxonomy VoC.
 7. Tambahkan competitor analysis.
 8. Tambahkan map/heatmap.

@@ -33,7 +33,9 @@ Core existing modules:
 - Review browsing / filtering
 - Summary
 - Export CSV / JSON
+- Feature
 - Terminal interactive menu via `python main.py`
+
 
 Target perubahan:
 

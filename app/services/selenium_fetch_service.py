@@ -20,16 +20,19 @@ logger = logging.getLogger(__name__)
 class SeleniumFetchService:
     def __init__(
         self,
+        company_id: int | None = None,
         session_factory: sessionmaker[Session] | None = None,
         settings: Settings | None = None,
         client: SeleniumGoogleMapsReviewClient | None = None,
     ):
+        self.company_id = company_id
         self.settings = settings or get_settings()
-        self.location_service = LocationService(session_factory)
-        self.review_service = ReviewService(session_factory)
-        self.fetch_log_service = FetchLogService(session_factory)
+        self.location_service = LocationService(company_id=company_id, session_factory=session_factory)
+        self.review_service = ReviewService(company_id=company_id, session_factory=session_factory)
+        self.fetch_log_service = FetchLogService(company_id=company_id, session_factory=session_factory)
         self.client = client or SeleniumGoogleMapsReviewClient(self.settings)
         self.normalizer = FetchService(
+            company_id=company_id,
             session_factory=session_factory,
             settings=self.settings,
             client=self.client,
@@ -39,6 +42,10 @@ class SeleniumFetchService:
         location = self.location_service.get_location(location_id)
         if location is None:
             raise ValueError("Location not found.")
+        if not location.company_id:
+            raise ValueError(
+                "Location belum di-assign ke company, tidak bisa menjalankan fetch job."
+            )
         requested_target = self.validate_target(
             target or location.target_review_count
         )

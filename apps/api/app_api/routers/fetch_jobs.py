@@ -31,7 +31,7 @@ def run_fetch_job(payload: FetchJobRequest, current_user: User = Depends(get_cur
     if payload.dry_run:
         result = FetchService(company_id=current_user.company_id).dry_run_location(payload.location_id)
     elif source in {"selenium", "selenium_google_maps"}:
-        result = SeleniumFetchService().fetch_location(
+        result = SeleniumFetchService(company_id=current_user.company_id).fetch_location(
             payload.location_id,
             target=payload.target_review_count,
         )

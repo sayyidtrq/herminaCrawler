@@ -132,6 +132,10 @@ class FetchService:
         location = self.location_service.get_location(location_id)
         if location is None:
             raise ValueError("Location not found.")
+        if not location.company_id:
+            raise ValueError(
+                "Location belum di-assign ke company, tidak bisa menjalankan fetch job."
+            )
 
         result = self._empty_result(location)
         log_id = self.fetch_log_service.start_log(location.id, result["source"])
@@ -211,6 +215,10 @@ class FetchService:
         location = self.location_service.get_location(location_id)
         if location is None:
             raise ValueError("Location not found.")
+        if not location.company_id:
+            raise ValueError(
+                "Location belum di-assign ke company, tidak bisa menjalankan fetch job."
+            )
         raw_reviews = self._fetch_with_retry(location)
         normalized = [
             self.normalize_review(location, raw_review) for raw_review in raw_reviews

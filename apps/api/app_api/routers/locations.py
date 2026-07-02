@@ -1,9 +1,13 @@
-﻿from __future__ import annotations
+from __future__ import annotations
+
+from typing import Annotated
 
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 
+from app.db.models import User
 from app.services.location_service import LocationService
+from apps.api.app_api.dependencies import get_current_user
 from apps.api.app_api.serializers import location_to_dict
 
 
@@ -42,9 +46,10 @@ class LocationUpdateRequest(BaseModel):
 
 @router.get("")
 def list_locations(
+    current_user: Annotated[User, Depends(get_current_user)],
     active_only: bool = Query(default=False),
 ) -> dict:
-    service = LocationService()
+    service = LocationService(company_id=current_user.company_id)
     locations = service.get_all_locations(active_only=active_only)
     return {
         "items": [location_to_dict(location) for location in locations],
@@ -53,14 +58,21 @@ def list_locations(
 
 
 @router.post("")
-def create_location(payload: LocationCreateRequest) -> dict:
-    location = LocationService().add_location(**payload.model_dump())
+def create_location(
+    payload: LocationCreateRequest,
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> dict:
+    service = LocationService(company_id=current_user.company_id)
+    location = service.add_location(**payload.model_dump())
     return location_to_dict(location)
 
 
 @router.get("/{location_id}")
-def get_location(location_id: int) -> dict:
-    service = LocationService()
+def get_location(
+    location_id: int,
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> dict:
+    service = LocationService(company_id=current_user.company_id)
     location = service.get_location(location_id)
     if location is None:
         raise ValueError("Location not found.")
@@ -68,8 +80,12 @@ def get_location(location_id: int) -> dict:
 
 
 @router.patch("/{location_id}")
-def update_location(location_id: int, payload: LocationUpdateRequest) -> dict:
-    service = LocationService()
+def update_location(
+    location_id: int, 
+    payload: LocationUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> dict:
+    service = LocationService(company_id=current_user.company_id)
     changed = None
     updates = payload.model_dump(exclude_unset=True)
     if not updates:
@@ -83,11 +99,19 @@ def update_location(location_id: int, payload: LocationUpdateRequest) -> dict:
 
 
 @router.post("/{location_id}/toggle-active")
-def toggle_location_active(location_id: int) -> dict:
-    return location_to_dict(LocationService().toggle_active(location_id))
+def toggle_location_active(
+    location_id: int,
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> dict:
+    service = LocationService(company_id=current_user.company_id)
+    return location_to_dict(service.toggle_active(location_id))
 
 
 @router.delete("/{location_id}")
-def delete_location(location_id: int) -> dict:
-    branch_name = LocationService().delete_location(location_id)
+def delete_location(
+    location_id: int,
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> dict:
+    service = LocationService(company_id=current_user.company_id)
+    branch_name = service.delete_location(location_id)
     return {"status": "success", "deleted": branch_name}

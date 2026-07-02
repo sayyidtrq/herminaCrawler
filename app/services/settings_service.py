@@ -52,10 +52,10 @@ class SettingsService:
             logger.error("Database connection check failed: %s", exc)
             return {"ok": False, "message": str(exc)}
 
-    def check_gemini_key(self) -> dict:
+    def check_local_llm_key(self) -> dict:
         return {
-            "found": bool(self.settings.gemini_api_key),
-            "masked": mask_secret(self.settings.gemini_api_key),
+            "found": bool(self.settings.local_llm_api_key),
+            "masked": mask_secret(self.settings.local_llm_api_key) if self.settings.local_llm_api_key else None,
         }
 
     def check_review_source_key(self) -> dict:

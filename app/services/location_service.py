@@ -35,7 +35,8 @@ class LocationService:
         "is_active",
     }
 
-    def __init__(self, session_factory: sessionmaker[Session] | None = None):
+    def __init__(self, company_id: int | None = None, session_factory: sessionmaker[Session] | None = None):
+        self.company_id = company_id
         self.session_factory = session_factory or get_session_factory()
 
     def add_location(self, **data: object) -> Location:
@@ -66,6 +67,7 @@ class LocationService:
                 data.get("target_review_count", 100)
             ),
             is_active=bool(data.get("is_active", True)),
+            company_id=self.company_id,
         )
         with self.session_factory() as session:
             try:
@@ -82,19 +84,27 @@ class LocationService:
     def get_all_locations(self, active_only: bool = False) -> list[Location]:
         with self.session_factory() as session:
             statement = select(Location).order_by(Location.id)
+            if self.company_id is not None:
+                statement = statement.where(Location.company_id == self.company_id)
             if active_only:
                 statement = statement.where(Location.is_active.is_(True))
             return list(session.scalars(statement))
 
     def get_location(self, location_id: int) -> Location | None:
         with self.session_factory() as session:
-            return session.get(Location, location_id)
+            statement = select(Location).where(Location.id == location_id)
+            if self.company_id is not None:
+                statement = statement.where(Location.company_id == self.company_id)
+            return session.scalar(statement)
 
     def update_location(self, location_id: int, field: str, value: object) -> Location:
         if field not in self.editable_fields:
             raise ValueError("This location field cannot be updated.")
         with self.session_factory() as session:
-            location = session.get(Location, location_id)
+            statement = select(Location).where(Location.id == location_id)
+            if self.company_id is not None:
+                statement = statement.where(Location.company_id == self.company_id)
+            location = session.scalar(statement)
             if location is None:
                 raise ValueError("Location not found.")
 
@@ -135,7 +145,10 @@ class LocationService:
 
     def toggle_active(self, location_id: int) -> Location:
         with self.session_factory() as session:
-            location = session.get(Location, location_id)
+            statement = select(Location).where(Location.id == location_id)
+            if self.company_id is not None:
+                statement = statement.where(Location.company_id == self.company_id)
+            location = session.scalar(statement)
             if location is None:
                 raise ValueError("Location not found.")
             location.is_active = not location.is_active
@@ -145,7 +158,10 @@ class LocationService:
 
     def delete_location(self, location_id: int) -> str:
         with self.session_factory() as session:
-            location = session.get(Location, location_id)
+            statement = select(Location).where(Location.id == location_id)
+            if self.company_id is not None:
+                statement = statement.where(Location.company_id == self.company_id)
+            location = session.scalar(statement)
             if location is None:
                 raise ValueError("Location not found.")
             branch_name = location.branch_name

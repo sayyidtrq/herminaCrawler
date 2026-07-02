@@ -40,9 +40,9 @@ class Settings:
     google_maps_api_key: str | None
     google_places_language_code: str
     google_places_region_code: str
-    gemini_mode: str
-    gemini_api_key: str | None
-    gemini_model: str
+    local_llm_base_url: str
+    local_llm_api_key: str | None
+    local_llm_model: str
     fetch_limit_per_location: int
     fetch_timeout_seconds: int
     fetch_max_retry: int
@@ -78,10 +78,6 @@ def get_settings() -> Settings:
             "google_business_profile, third_party, or selenium."
         )
 
-    gemini_mode = os.getenv("GEMINI_MODE", "mock").strip().lower()
-    if gemini_mode not in {"mock", "real"}:
-        raise ValueError("GEMINI_MODE must be mock or real.")
-
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise ValueError("DATABASE_URL is required in .env.")
@@ -114,9 +110,9 @@ def get_settings() -> Settings:
         google_places_region_code=os.getenv(
             "GOOGLE_PLACES_REGION_CODE", "ID"
         ).strip(),
-        gemini_mode=gemini_mode,
-        gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+        local_llm_base_url=os.getenv("LOCAL_LLM_BASE_URL", "http://192.168.1.115:11434/v1/").strip(),
+        local_llm_api_key=os.getenv("LOCAL_LLM_API_KEY", "ollama") or None,
+        local_llm_model=os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b").strip(),
         fetch_limit_per_location=_as_int("FETCH_LIMIT_PER_LOCATION", 50),
         fetch_timeout_seconds=_as_int("FETCH_TIMEOUT_SECONDS", 30),
         fetch_max_retry=_as_int("FETCH_MAX_RETRY", 3),

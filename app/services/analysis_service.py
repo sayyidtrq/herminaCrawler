@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings, get_settings
 from app.db.models import Review, ReviewAnalysis
 from app.db.session import get_session_factory
-from app.integrations.gemini_client import GeminiClient, GeminiClientBase
-from app.integrations.mock_gemini_client import MockGeminiClient
+from app.integrations.gemini_client import GeminiClientBase
+from app.integrations.local_llm_client import LocalLLMClient
 
 
 logger = logging.getLogger(__name__)
@@ -40,17 +40,18 @@ ALLOWED_CATEGORIES = {
 class AnalysisService:
     def __init__(
         self,
+        company_id: int | None = None,
         session_factory: sessionmaker[Session] | None = None,
         settings: Settings | None = None,
         client: GeminiClientBase | None = None,
     ):
+        self.company_id = company_id
         self.session_factory = session_factory or get_session_factory()
         self.settings = settings or get_settings()
-        self.client = client or (
-            MockGeminiClient()
-            if self.settings.gemini_mode == "mock"
-            else GeminiClient(self.settings)
-        )
+        if client:
+            self.client = client
+        else:
+            self.client = LocalLLMClient(self.settings)
 
     def analyze_pending(
         self, location_id: int | None = None, rating: int | None = None
@@ -59,6 +60,8 @@ class AnalysisService:
             select(ReviewAnalysis.id).where(ReviewAnalysis.review_id == Review.id)
         )
         statement = select(Review).where(~pending_exists).order_by(Review.id)
+        if self.company_id is not None:
+            statement = statement.where(Review.company_id == self.company_id)
         if location_id is not None:
             statement = statement.where(Review.location_id == location_id)
         if rating is not None:
@@ -70,7 +73,10 @@ class AnalysisService:
 
     def rerun_review(self, review_id: int) -> dict:
         with self.session_factory() as session:
-            review = session.get(Review, review_id)
+            statement = select(Review).where(Review.id == review_id)
+            if self.company_id is not None:
+                statement = statement.where(Review.company_id == self.company_id)
+            review = session.scalar(statement)
             if review is None:
                 raise ValueError("Review not found.")
             review_data = self._review_to_dict(review)
@@ -78,13 +84,10 @@ class AnalysisService:
 
     def rerun_location(self, location_id: int) -> dict:
         with self.session_factory() as session:
-            reviews = list(
-                session.scalars(
-                    select(Review)
-                    .where(Review.location_id == location_id)
-                    .order_by(Review.id)
-                )
-            )
+            statement = select(Review).where(Review.location_id == location_id).order_by(Review.id)
+            if self.company_id is not None:
+                statement = statement.where(Review.company_id == self.company_id)
+            reviews = list(session.scalars(statement))
             review_data = [self._review_to_dict(review) for review in reviews]
         return self._analyze_items(review_data)
 

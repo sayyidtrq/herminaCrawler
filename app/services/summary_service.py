@@ -188,6 +188,7 @@ class SummaryService:
                     "location": location_name,
                     "rating": review.rating,
                     "review_text": review.review_text,
+                    "sentiment": analysis.sentiment,
                     "issue_category": analysis.issue_category,
                     "urgency": analysis.urgency,
                     "recommended_action": analysis.recommended_action,

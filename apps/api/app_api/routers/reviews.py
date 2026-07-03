@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 
 from app.config import get_settings
 from app.db.models import User
 from app.services.review_service import ReviewService
+from app.utils.date_parser import resolve_date_range
 from apps.api.app_api.dependencies import get_current_user
 from apps.api.app_api.serializers import hide_raw_payload, to_jsonable
 
@@ -22,9 +25,13 @@ def list_reviews(
     keyword: str | None = Query(default=None),
     latest_first: bool = Query(default=False),
     include_raw: bool = Query(default=False),
+    date_preset: str | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     settings = get_settings()
+    resolved_from, resolved_to = resolve_date_range(date_preset, date_from, date_to)
     service = ReviewService(company_id=current_user.company_id)
     items, total = service.get_reviews(
         page=page,
@@ -34,6 +41,8 @@ def list_reviews(
         sentiment=sentiment,
         keyword=keyword,
         latest_first=latest_first,
+        date_from=resolved_from,
+        date_to=resolved_to,
     )
     if not (settings.show_raw_payload or include_raw):
         items = [hide_raw_payload(item) for item in items]

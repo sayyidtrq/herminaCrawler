@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -78,6 +80,8 @@ class ReviewService:
         sentiment: str | None = None,
         keyword: str | None = None,
         latest_first: bool = False,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> tuple[list[dict], int]:
         latest = latest_analysis_subquery()
         statement = (
@@ -105,6 +109,12 @@ class ReviewService:
             pattern = f"%{keyword}%"
             statement = statement.where(Review.review_text.ilike(pattern))
             count_statement = count_statement.where(Review.review_text.ilike(pattern))
+        if date_from is not None:
+            statement = statement.where(Review.review_time >= date_from)
+            count_statement = count_statement.where(Review.review_time >= date_from)
+        if date_to is not None:
+            statement = statement.where(Review.review_time <= date_to)
+            count_statement = count_statement.where(Review.review_time <= date_to)
 
         if self.company_id is not None:
             statement = statement.where(Review.company_id == self.company_id)

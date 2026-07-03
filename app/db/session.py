@@ -13,7 +13,22 @@ from app.config import get_settings
 
 @lru_cache(maxsize=1)
 def get_engine() -> Engine:
-    return create_engine(get_settings().database_url, pool_pre_ping=True)
+    # Supabase's session-mode pooler (port 5432) caps this project at 15 total
+    # clients. SQLAlchemy's default pool (size 5 + overflow 10 = up to 15
+    # held-open connections) can consume that entire budget on its own and
+    # starve any other client (the terminal app, alembic, a second API worker),
+    # which surfaces as intermittent 500s on login/other endpoints. Keep a
+    # small bounded pool and recycle idle connections so we stay well under the
+    # cap. For higher concurrency, point DATABASE_URL at the transaction pooler
+    # (port 6543) instead of 5432.
+    return create_engine(
+        get_settings().database_url,
+        pool_pre_ping=True,
+        pool_size=3,
+        max_overflow=2,
+        pool_timeout=30,
+        pool_recycle=1800,
+    )
 
 
 @lru_cache(maxsize=1)

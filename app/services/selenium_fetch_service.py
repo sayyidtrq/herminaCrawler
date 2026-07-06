@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings, get_settings
+from app.db.session import get_session_factory
 from app.integrations.selenium_google_maps_client import (
     SeleniumGoogleMapsReviewClient,
 )
+from app.services.entitlement_service import EntitlementService
 from app.services.fetch_log_service import FetchLogService
 from app.services.fetch_service import FetchService
 from app.services.location_service import LocationService
 from app.services.review_service import ReviewService
+from app.utils.date_parser import is_within_date_range
 
 
 logger = logging.getLogger(__name__)
@@ -20,22 +24,38 @@ logger = logging.getLogger(__name__)
 class SeleniumFetchService:
     def __init__(
         self,
+        company_id: int | None = None,
         session_factory: sessionmaker[Session] | None = None,
         settings: Settings | None = None,
         client: SeleniumGoogleMapsReviewClient | None = None,
     ):
+        self.company_id = company_id
+        self.session_factory = session_factory or get_session_factory()
         self.settings = settings or get_settings()
-        self.location_service = LocationService(session_factory)
-        self.review_service = ReviewService(session_factory)
-        self.fetch_log_service = FetchLogService(session_factory)
+        self.location_service = LocationService(
+            company_id=company_id, session_factory=self.session_factory
+        )
+        self.review_service = ReviewService(
+            company_id=company_id, session_factory=self.session_factory
+        )
+        self.fetch_log_service = FetchLogService(
+            company_id=company_id, session_factory=self.session_factory
+        )
         self.client = client or SeleniumGoogleMapsReviewClient(self.settings)
         self.normalizer = FetchService(
-            session_factory=session_factory,
+            company_id=company_id,
+            session_factory=self.session_factory,
             settings=self.settings,
             client=self.client,
         )
 
-    def fetch_location(self, location_id: int, target: int | None = None) -> dict:
+    def fetch_location(
+        self,
+        location_id: int,
+        target: int | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> dict:
         location = self.location_service.get_location(location_id)
         if location is None:
             raise ValueError("Location not found.")
@@ -52,10 +72,13 @@ class SeleniumFetchService:
             "total_inserted": 0,
             "total_duplicate": 0,
             "total_failed": 0,
+            "total_skipped_out_of_range": 0,
             "error_message": None,
             "metadata": {
                 "target_review_count": requested_target,
                 "headless": self.settings.selenium_headless,
+                "date_from": date_from.isoformat() if date_from else None,
+                "date_to": date_to.isoformat() if date_to else None,
             },
         }
         log_id = self.fetch_log_service.start_log(
@@ -71,6 +94,8 @@ class SeleniumFetchService:
                 location, limit=requested_target
             )
             result["metadata"] = dict(self.client.last_metadata)
+            result["metadata"]["date_from"] = date_from.isoformat() if date_from else None
+            result["metadata"]["date_to"] = date_to.isoformat() if date_to else None
             result["total_fetched"] = len(raw_reviews)
             result["total_failed"] = int(
                 result["metadata"].get("failed_review_cards", 0)
@@ -80,6 +105,9 @@ class SeleniumFetchService:
                     normalized = self.normalizer.normalize_review(
                         location, raw_review
                     )
+                    if not is_within_date_range(normalized["review_time"], date_from, date_to):
+                        result["total_skipped_out_of_range"] += 1
+                        continue
                     _, duplicate = self.review_service.insert_review(normalized)
                     if duplicate:
                         result["total_duplicate"] += 1
@@ -109,6 +137,10 @@ class SeleniumFetchService:
         except (TypeError, ValueError) as exc:
             raise ValueError("Target review count must be numeric.") from exc
         maximum = min(self.settings.selenium_max_target_reviews, 300)
+        if self.company_id is not None:
+            quota = EntitlementService(self.company_id, self.session_factory).review_quota()
+            if quota > 0:
+                maximum = min(maximum, quota)
         if not 1 <= value <= maximum:
             raise ValueError(
                 f"Target review count must be between 1 and {maximum}."

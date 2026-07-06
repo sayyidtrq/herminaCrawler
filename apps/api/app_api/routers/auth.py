@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from passlib.context import CryptContext
@@ -22,6 +22,20 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_BYTES = 72  # bcrypt truncates/rejects beyond this
+
+
+def validate_password_policy(value: str) -> str:
+    if len(value) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.")
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise ValueError(f"Password must be at most {MAX_PASSWORD_BYTES} bytes long.")
+    if not any(char.isalpha() for char in value) or not any(char.isdigit() for char in value):
+        raise ValueError("Password must contain at least one letter and one number.")
+    return value
+
+
 class CompanyRegisterRequest(BaseModel):
     company_name: str
     admin_email: EmailStr
@@ -30,6 +44,11 @@ class CompanyRegisterRequest(BaseModel):
     ai_enable_flag: bool = False
     total_enable_review: int = 100
     analyze_competitor_flag: bool = False
+
+    @field_validator("admin_password")
+    @classmethod
+    def _check_password_policy(cls, value: str) -> str:
+        return validate_password_policy(value)
 
 class TokenResponse(BaseModel):
     access_token: str

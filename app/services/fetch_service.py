@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -16,10 +17,15 @@ from app.integrations.review_source_client import (
 from app.integrations.selenium_google_maps_client import (
     SeleniumGoogleMapsReviewClient,
 )
+from app.services.entitlement_service import EntitlementService
 from app.services.fetch_log_service import FetchLogService
 from app.services.location_service import LocationService
 from app.services.review_service import ReviewService
-from app.utils.date_parser import parse_datetime
+from app.utils.date_parser import (
+    is_within_date_range,
+    parse_datetime,
+    parse_relative_datetime,
+)
 from app.utils.hashing import generate_review_hash, generate_selenium_review_hash
 
 
@@ -64,6 +70,10 @@ class FetchService:
                 limit = self.settings.fetch_limit_per_location
                 if self.settings.review_source_mode == "selenium":
                     limit = location.target_review_count
+                    if self.company_id is not None:
+                        limit = EntitlementService(
+                            self.company_id
+                        ).clamp_review_target(limit)
                 return self.client.fetch_reviews(location, limit=limit)
             except ReviewSourceError as exc:
                 if not exc.retriable or attempt == attempts - 1:
@@ -72,6 +82,17 @@ class FetchService:
                 logger.warning("Fetch retry %s after error: %s", attempt + 1, exc)
                 time.sleep(delay)
         return []
+
+    @staticmethod
+    def _resolve_review_time(raw_review: dict) -> datetime | None:
+        review_time = parse_datetime(raw_review.get("review_time"))
+        if review_time is not None:
+            return review_time
+        relative_time = raw_review.get("review_relative_time")
+        if not relative_time:
+            return None
+        reference = parse_datetime(raw_review.get("scraped_at")) or datetime.now().astimezone()
+        return parse_relative_datetime(relative_time, reference)
 
     def normalize_review(self, location, raw_review: dict) -> dict:
         raw_payload = raw_review.get("raw_payload")
@@ -106,7 +127,7 @@ class FetchService:
             "reviewer_total_reviews": raw_review.get("reviewer_total_reviews"),
             "rating": rating,
             "review_text": str(raw_review.get("review_text") or ""),
-            "review_time": parse_datetime(raw_review.get("review_time")),
+            "review_time": self._resolve_review_time(raw_review),
             "review_relative_time": raw_review.get("review_relative_time"),
             "review_language": str(
                 raw_review.get("review_language")
@@ -128,18 +149,32 @@ class FetchService:
             normalized["review_hash"] = generate_review_hash(normalized)
         return normalized
 
-    def fetch_location(self, location_id: int) -> dict:
+    def fetch_location(
+        self,
+        location_id: int,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> dict:
         location = self.location_service.get_location(location_id)
         if location is None:
             raise ValueError("Location not found.")
 
         result = self._empty_result(location)
-        log_id = self.fetch_log_service.start_log(location.id, result["source"])
+        result["metadata"] = {
+            "date_from": date_from.isoformat() if date_from else None,
+            "date_to": date_to.isoformat() if date_to else None,
+        }
+        result["total_skipped_out_of_range"] = 0
+        log_id = self.fetch_log_service.start_log(
+            location.id, result["source"], result["metadata"]
+        )
         logger.info("Fetch started for %s", location.branch_name)
         try:
             raw_reviews = self._fetch_with_retry(location)
             if hasattr(self.client, "last_metadata"):
                 result["metadata"] = dict(self.client.last_metadata)
+                result["metadata"]["date_from"] = date_from.isoformat() if date_from else None
+                result["metadata"]["date_to"] = date_to.isoformat() if date_to else None
                 result["total_failed"] = int(
                     result["metadata"].get("failed_review_cards", 0)
                 )
@@ -147,6 +182,9 @@ class FetchService:
             for raw_review in raw_reviews:
                 try:
                     normalized = self.normalize_review(location, raw_review)
+                    if not is_within_date_range(normalized["review_time"], date_from, date_to):
+                        result["total_skipped_out_of_range"] += 1
+                        continue
                     _, duplicate = self.review_service.insert_review(normalized)
                     if duplicate:
                         result["total_duplicate"] += 1
@@ -174,7 +212,11 @@ class FetchService:
             self.fetch_log_service.finish_log(log_id, result)
         return result
 
-    def fetch_all_active_locations(self) -> dict:
+    def fetch_all_active_locations(
+        self,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> dict:
         locations = self.location_service.get_all_locations(active_only=True)
         if not locations:
             return {
@@ -196,7 +238,7 @@ class FetchService:
             "results": [],
         }
         for location in locations:
-            result = self.fetch_location(location.id)
+            result = self.fetch_location(location.id, date_from=date_from, date_to=date_to)
             summary["results"].append(result)
             if result["status"] in {"success", "partial_success"}:
                 summary["success"] += 1
@@ -207,13 +249,22 @@ class FetchService:
             summary["total_duplicate"] += result["total_duplicate"]
         return summary
 
-    def dry_run_location(self, location_id: int) -> dict:
+    def dry_run_location(
+        self,
+        location_id: int,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> dict:
         location = self.location_service.get_location(location_id)
         if location is None:
             raise ValueError("Location not found.")
         raw_reviews = self._fetch_with_retry(location)
         normalized = [
             self.normalize_review(location, raw_review) for raw_review in raw_reviews
+        ]
+        in_range = [
+            item for item in normalized
+            if is_within_date_range(item["review_time"], date_from, date_to)
         ]
         self.fetch_log_service.create_dry_run_log(
             location.id, self.settings.review_source_mode, len(normalized)
@@ -224,7 +275,8 @@ class FetchService:
             "source": self.settings.review_source_mode,
             "status": "dry_run",
             "total_fetched": len(normalized),
-            "samples": normalized[:5],
+            "total_in_range": len(in_range),
+            "samples": in_range[:5],
         }
 
     def _empty_result(self, location) -> dict:

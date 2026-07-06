@@ -7,9 +7,17 @@ from pydantic import BaseModel, Field
 
 from app.db.models import User, Competitor
 from app.services.competitor_service import CompetitorService
+from app.services.entitlement_service import EntitlementError, EntitlementService
 from apps.api.app_api.dependencies import get_current_user
 
 router = APIRouter(prefix="/competitors", tags=["competitors"])
+
+
+def _require_competitor_enabled(company_id: int) -> None:
+    try:
+        EntitlementService(company_id).require_competitor_enabled()
+    except EntitlementError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 class CompetitorCreateRequest(BaseModel):
     name: str = Field(min_length=1)
@@ -60,6 +68,7 @@ def list_competitors(
     current_user: Annotated[User, Depends(get_current_user)],
     active_only: bool = Query(default=False),
 ) -> dict:
+    _require_competitor_enabled(current_user.company_id)
     service = CompetitorService(company_id=current_user.company_id)
     competitors = service.get_all_competitors(active_only=active_only)
     return {
@@ -72,6 +81,7 @@ def create_competitor(
     payload: CompetitorCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> dict:
+    _require_competitor_enabled(current_user.company_id)
     service = CompetitorService(company_id=current_user.company_id)
     competitor = service.add_competitor(**payload.model_dump())
     return competitor_to_dict(competitor)
@@ -81,6 +91,7 @@ def get_competitor(
     competitor_id: int,
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> dict:
+    _require_competitor_enabled(current_user.company_id)
     service = CompetitorService(company_id=current_user.company_id)
     competitor = service.get_competitor(competitor_id)
     if competitor is None:
@@ -89,10 +100,11 @@ def get_competitor(
 
 @router.patch("/{competitor_id}")
 def update_competitor(
-    competitor_id: int, 
+    competitor_id: int,
     payload: CompetitorUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> dict:
+    _require_competitor_enabled(current_user.company_id)
     service = CompetitorService(company_id=current_user.company_id)
     changed = None
     updates = payload.model_dump(exclude_unset=True)
@@ -113,6 +125,7 @@ def toggle_competitor_active(
     competitor_id: int,
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> dict:
+    _require_competitor_enabled(current_user.company_id)
     service = CompetitorService(company_id=current_user.company_id)
     try:
         return competitor_to_dict(service.toggle_active(competitor_id))
@@ -124,6 +137,7 @@ def delete_competitor(
     competitor_id: int,
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> dict:
+    _require_competitor_enabled(current_user.company_id)
     service = CompetitorService(company_id=current_user.company_id)
     try:
         name = service.delete_competitor(competitor_id)

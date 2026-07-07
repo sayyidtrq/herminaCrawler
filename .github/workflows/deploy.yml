@@ -1,0 +1,93 @@
+name: Build and Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "apps/**"
+      - "alembic/**"
+      - "alembic.ini"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "entrypoint.sh"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch: {}
+
+env:
+  # ghcr.io requires a lowercase image path; the repo itself is
+  # sayyidtrq/herminaCrawler (capital C), so this is hardcoded rather than
+  # derived from github.repository. Update if the repo is ever renamed.
+  IMAGE: ghcr.io/sayyidtrq/herminacrawler
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r apps/api/requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -q --ignore=tests/test_real_integrations.py
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
+    steps:
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull latest code and image, restart stack
+        # This runner does NOT use actions/checkout for this job on purpose:
+        # checkout's default clean step would delete the untracked .env file
+        # that lives in the deploy directory on the private server. Instead
+        # this assumes DEPLOY_DIR is a persistent git clone set up once
+        # (see markdowns/CI_CD_SETUP.md), with its own .env already in place.
+        # `git reset --hard` only touches tracked files, so .env survives.
+        env:
+          DEPLOY_DIR: /opt/hermina-crawler
+        run: |
+          set -e
+          cd "$DEPLOY_DIR"
+          git fetch origin main
+          git reset --hard origin/main
+          docker compose pull
+          docker compose up -d
+          docker image prune -f

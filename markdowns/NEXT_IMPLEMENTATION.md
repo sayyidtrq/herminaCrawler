@@ -14,6 +14,8 @@ Dampak: siapa pun yang pegang **anon key** project (anon key didesain publik, bi
 
 Kenapa aman untuk difix nanti tanpa mecahin apa-apa: backend konek sebagai role `postgres` (bypass RLS, grant tetap), frontend pakai FastAPI (bukan supabase-js/anon key). Jadi enable RLS + revoke anon TIDAK merusak backend/frontend.
 
+Dikonfirmasi ulang via Supabase MCP `get_advisors` (security) 7 Jul 2026: 9x lint `rls_disabled_in_public` level **ERROR** — persis di kesembilan tabel yang sama (`locations`, `companies`, `users`, `reviews`, `review_analysis`, `fetch_logs`, `competitors`, `competitor_reviews`, `alembic_version`). Referensi: https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public
+
 Fix (belum dijalankan — koordinasi tim dulu):
 ```sql
 -- minimal: enable RLS di semua tabel (tanpa policy = deny-all buat anon/authenticated)
@@ -33,11 +35,21 @@ Alternatif paling bersih: matikan "Exposed schemas = public" di Data API setting
 
 Terkait: **`JWT_SECRET_KEY` belum di-set di `.env`** → backend pakai fallback insecure yang ada di source publik. Untuk API yang konek ke DB prod dan bakal diekspos ke Infra/OneBox, ini WAJIB di-set ke value random sebelum deploy (kalau tidak, siapa pun bisa forge JWT).
 
+## P0 — CI/CD (diimplementasikan 7 Jul 2026, butuh 1 setup manual)
+
+Workflow `.github/workflows/deploy.yml` sudah dibuat: push ke `main` (path backend) → build image → push ke `ghcr.io/sayyidtrq/herminacrawler` → deploy otomatis ke server private via self-hosted runner. Detail lengkap + cara kerja + langkah setup di `markdowns/CI_CD_SETUP.md`.
+
+**Sisa kerjaan (wajib dikerjakan manual di server private, gua gak punya akses ke sana):**
+1. Install & register GitHub Actions self-hosted runner di server itu.
+2. Buat `/opt/hermina-crawler`, `git clone` repo, isi `.env` di situ.
+3. Pastikan user runner bisa jalanin `docker` tanpa sudo.
+4. Test: push kecil ke `main` atau trigger manual via tab Actions, pantau job `deploy`.
+
 ## P0 — Deployment & Integrasi OneBox (arahan lead, sedang berjalan)
 
-1. **Push `main` ke origin** — 4 commit lokal (repo cleanup, Docker, merge, migration/test fix) belum di-push.
-2. **Deploy ke server dev dari Infra Team** — ikuti `DOCKER_BACKEND_DEPLOYMENT_GUIDE.md` bagian 9. Jawab dulu pre-flight checklist bagian 15 sebelum meeting infra.
-3. **Set secret production di server**: `JWT_SECRET_KEY` (wajib, jangan pakai fallback kode), `DATABASE_URL`, `LOCAL_LLM_BASE_URL`, `CORS_ALLOWED_ORIGINS` (+ origin OneBox).
+1. **Push `main` ke origin** — beberapa commit lokal (repo cleanup, Docker, merge, migration/test fix, Supabase switch, CI/CD) belum di-push.
+2. **Setup self-hosted runner** — lihat item CI/CD di atas. Setelah ini jalan, poin di bawah soal "deploy manual ke server dev" jadi otomatis.
+3. **Set secret production di server**: `JWT_SECRET_KEY` (wajib, jangan pakai fallback kode), `DATABASE_URL` (Supabase, sudah aktif), `LOCAL_LLM_BASE_URL`, `CORS_ALLOWED_ORIGINS` (+ origin OneBox).
 4. **Kirim paket integrasi ke tim OneBox**: base URL, `/api/health`, `/api/docs`, auth flow (register/login → Bearer), daftar endpoint pull. `markdowns/api-design.md` (kerjaan tim, sudah masuk main) adalah kontraknya — review dulu apakah sudah sinkron dengan response `database` field baru di health.
 5. **Klarifikasi auth model untuk OneBox**: sekarang auth-nya user-based JWT (login email/password, expired 7 hari). Untuk service-to-service pull, kemungkinan butuh API key statis atau service account + refresh mechanism. Putuskan bareng tim OneBox sebelum mereka mulai integrasi.
 
@@ -53,7 +65,6 @@ Terkait: **`JWT_SECRET_KEY` belum di-set di `.env`** → backend pakai fallback 
 1. **Job asinkron.** Fetch/analysis masih synchronous di request HTTP — request OneBox bisa timeout untuk job besar. Rencana V2 sudah ada: tabel `crawl_jobs` + return job id + worker (RQ/Celery/arq). Ini prasyarat sebelum OneBox pull data dalam volume nyata.
 2. **Reverse proxy + HTTPS** (Nginx/Caddy, dibantu Infra Team) + IP whitelist kalau diminta OneBox.
 3. **Multi-worker**: ganti uvicorn single-process dengan `--workers N` atau gunicorn+uvicorn worker di entrypoint.
-4. **CI**: minimal jalankan `pytest` + `docker compose build` di GitHub Actions tiap push.
 
 ## P3 — Fitur Produk V2 yang Tersisa (dari checklist, SUDAH diverifikasi ke kode 7 Juli)
 

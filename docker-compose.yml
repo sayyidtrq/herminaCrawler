@@ -1,5 +1,10 @@
 services:
   api:
+    # image: lets the deploy server do `docker compose pull` against the
+    # image CI built and pushed, without needing the Dockerfile/build
+    # context locally. `build:` stays so local dev can still
+    # `docker compose build api` from source when iterating.
+    image: ghcr.io/sayyidtrq/herminacrawler:latest
     build:
       context: .
       dockerfile: Dockerfile

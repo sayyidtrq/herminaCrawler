@@ -1,0 +1,46 @@
+# Next Implementation — Roadmap Setelah Dockerization
+
+Update: 7 Juli 2026. Urutan berdasarkan prioritas nyata (bukan sekadar checklist lama — beberapa item di `checklist-system-design-v2.md` sudah tidak akurat, lihat catatan di bawah).
+
+## P0 — Deployment & Integrasi OneBox (arahan lead, sedang berjalan)
+
+1. **Push `main` ke origin** — 4 commit lokal (repo cleanup, Docker, merge, migration/test fix) belum di-push.
+2. **Deploy ke server dev dari Infra Team** — ikuti `DOCKER_BACKEND_DEPLOYMENT_GUIDE.md` bagian 9. Jawab dulu pre-flight checklist bagian 15 sebelum meeting infra.
+3. **Set secret production di server**: `JWT_SECRET_KEY` (wajib, jangan pakai fallback kode), `DATABASE_URL`, `LOCAL_LLM_BASE_URL`, `CORS_ALLOWED_ORIGINS` (+ origin OneBox).
+4. **Kirim paket integrasi ke tim OneBox**: base URL, `/api/health`, `/api/docs`, auth flow (register/login → Bearer), daftar endpoint pull. `markdowns/api-design.md` (kerjaan tim, sudah masuk main) adalah kontraknya — review dulu apakah sudah sinkron dengan response `database` field baru di health.
+5. **Klarifikasi auth model untuk OneBox**: sekarang auth-nya user-based JWT (login email/password, expired 7 hari). Untuk service-to-service pull, kemungkinan butuh API key statis atau service account + refresh mechanism. Putuskan bareng tim OneBox sebelum mereka mulai integrasi.
+
+## P1 — Bug Nyata yang Sudah Terkonfirmasi di Kode
+
+1. **Unique constraint `locations` belum company-aware.** `uq_locations_source_place` masih global `(source, external_place_id)` — company B tidak bisa mendaftarkan tempat yang sudah didaftarkan company A. Tabel `competitors` sudah benar (`uq_competitors_source_place_company`); samakan. Butuh satu migration baru: drop constraint lama, create `(company_id, source, external_place_id)`.
+2. **`SettingsService.public_configuration()` crash** — masih membaca `self.settings.gemini_mode`/`gemini_model` yang sudah dihapus dari `Settings`. Endpoint `GET /api/settings` akan 500 kalau dipanggil. Hapus dua baris itu atau ganti dengan field local LLM.
+3. **`test_real_integrations.py` stale** — masih import `GeminiClient` + field gemini. Putuskan: update ke local LLM / OpenRouter, atau hapus kalau Gemini memang ditinggalkan.
+4. **`ANALYSIS_PROVIDER` belum ada di kode** (permintaan "AI fleksibel" Pak Agung baru terpenuhi sebagian via env local LLM). Tambah setting `ANALYSIS_PROVIDER=local_llm|gemini|openrouter` yang memilih client di `AnalysisService`, sekaligus sinkronkan config `GeminiClient`/`OpenRouterClient` yang sekarang refer setting yang tidak ada.
+
+## P2 — Hardening Deployment (setelah jalan di server)
+
+1. **Job asinkron.** Fetch/analysis masih synchronous di request HTTP — request OneBox bisa timeout untuk job besar. Rencana V2 sudah ada: tabel `crawl_jobs` + return job id + worker (RQ/Celery/arq). Ini prasyarat sebelum OneBox pull data dalam volume nyata.
+2. **Reverse proxy + HTTPS** (Nginx/Caddy, dibantu Infra Team) + IP whitelist kalau diminta OneBox.
+3. **Multi-worker**: ganti uvicorn single-process dengan `--workers N` atau gunicorn+uvicorn worker di entrypoint.
+4. **CI**: minimal jalankan `pytest` + `docker compose build` di GitHub Actions tiap push.
+
+## P3 — Fitur Produk V2 yang Tersisa (dari checklist, SUDAH diverifikasi ke kode 7 Juli)
+
+Catatan penting: beberapa item P0 lama di `checklist-system-design-v2.md` **sudah selesai** dan tidak perlu dikerjakan lagi — bearer token auto-inject di `api.ts` frontend sudah ada, 401 auto-redirect sudah ada, enforcement `ai_enable_flag` dan `analyze_competitor_flag` di backend sudah ada (`EntitlementService`). Jangan buang waktu ke situ.
+
+Yang benar-benar masih kosong:
+
+1. **Quota enforcement** — `total_enable_review` tampil di UI tapi tidak pernah di-enforce di fetch job.
+2. **MapPicker belum terpasang di halaman Locations** — komponennya ada (`app/components/map-picker.tsx`, react-leaflet terinstall), form Locations masih manual input lat/lng/place ID. Tinggal wiring.
+3. **Date range filter** untuk fetch + reviews (permintaan stakeholder: crawl lebih terstruktur).
+4. **Review Inbox** — handling status (`new/triaged/assigned/...`), assignment, notes, detail panel.
+5. **AI Taxonomy V2** — product/wilayah/unit kerja/klasifikasi + confidence score di prompt & schema.
+6. **Competitor pipeline** — registry CRUD sudah ada; crawl + benchmark + dashboard belum.
+7. **Map/Heatmap page** + aggregation API.
+8. **Reports & Settings pages** — masih placeholder di FE.
+9. **Tenant-isolation test untuk layer API** — test service-layer sudah ada (`test_tenant_isolation.py`), belum ada yang menguji lewat HTTP + JWT.
+
+## Utang Dokumentasi
+
+- `checklist-system-design-v2.md` dan `newer_system.md` saling kontradiksi dan sebagian sudah basi (contoh: klaim "MapPicker dihapus total" itu salah). Sinkronkan sekali, atau tandai keduanya deprecated dan jadikan dokumen ini + `existing-system.md` acuan.
+- `api-design.md` (baru dari tim): pastikan tetap sinkron tiap kali response schema berubah — sudah kejadian sekali (field `database` di health hampir ke-strip gara-gara schema tidak di-update).

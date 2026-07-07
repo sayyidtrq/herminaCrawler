@@ -9,13 +9,24 @@ from app.db.models import User
 from app.services.review_service import ReviewService
 from app.utils.date_parser import resolve_date_range
 from apps.api.app_api.dependencies import get_current_user
+from apps.api.app_api.schemas import ReviewListResponse, ReviewResponse
 from apps.api.app_api.serializers import hide_raw_payload, to_jsonable
 
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
-@router.get("")
+@router.get(
+    "",
+    response_model=ReviewListResponse,
+    summary="List review hasil crawling + insight AI",
+    description=(
+        "Ambil daftar review (paginated) beserta hasil analisis AI yang menempel "
+        "pada tiap review. Mendukung filter lokasi, rating, sentiment, keyword, dan "
+        "rentang tanggal. **Endpoint pull utama untuk integrasi Onebox.** "
+        "Data otomatis di-scope ke company milik token."
+    ),
+)
 def list_reviews(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
@@ -57,7 +68,13 @@ def list_reviews(
     )
 
 
-@router.get("/{review_id}")
+@router.get(
+    "/{review_id}",
+    response_model=ReviewResponse,
+    summary="Detail satu review",
+    description="Ambil satu review beserta hasil analisis AI-nya. Set `include_raw=true` untuk menyertakan payload mentah.",
+    responses={404: {"description": "Review not found"}},
+)
 def get_review(
     review_id: int,
     include_raw: bool = Query(default=False),

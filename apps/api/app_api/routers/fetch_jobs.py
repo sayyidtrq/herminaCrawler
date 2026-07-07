@@ -39,7 +39,31 @@ def _resolve_range(payload) -> tuple[datetime | None, datetime | None]:
     return resolve_date_range(payload.date_preset, payload.date_from, payload.date_to)
 
 
-@router.post("")
+_FETCH_RESULT_EXAMPLE = {
+    "location_id": 5,
+    "location_name": "Hermina Depok",
+    "source": "selenium_google_maps",
+    "status": "success",
+    "total_fetched": 200,
+    "total_inserted": 25,
+    "total_duplicate": 175,
+    "total_failed": 0,
+    "total_skipped_out_of_range": 0,
+    "error_message": None,
+    "metadata": {"target_review_count": 200},
+}
+
+
+@router.post(
+    "",
+    summary="Trigger crawling 1 lokasi",
+    description=(
+        "Menjalankan crawling review untuk satu lokasi (sinkron/blocking). "
+        "Mendukung `source` (selenium/places/mock), `dry_run`, dan rentang tanggal. "
+        "`status` bisa `success` | `partial_success` | `failed` | `dry_run`."
+    ),
+    responses={200: {"content": {"application/json": {"example": _FETCH_RESULT_EXAMPLE}}}},
+)
 def run_fetch_job(payload: FetchJobRequest, current_user: User = Depends(get_current_user)) -> dict:
     source = (payload.source or get_settings().review_source_mode).lower()
     date_from, date_to = _resolve_range(payload)
@@ -73,7 +97,12 @@ def run_fetch_job(payload: FetchJobRequest, current_user: User = Depends(get_cur
     return to_jsonable(result)
 
 
-@router.post("/all-active")
+@router.post(
+    "/all-active",
+    summary="Trigger crawling semua lokasi aktif",
+    description="Menjalankan crawling untuk seluruh lokasi aktif milik company. Mengembalikan ringkasan agregat beserta hasil per lokasi.",
+    responses={200: {"content": {"application/json": {"example": {"status": "success", "total_locations": 12, "total_fetched": 2400, "results": [_FETCH_RESULT_EXAMPLE]}}}}},
+)
 def run_fetch_all_active(payload: FetchAllActiveRequest | None = None, current_user: User = Depends(get_current_user)) -> dict:
     payload = payload or FetchAllActiveRequest()
     dry_run = bool(payload.dry_run)

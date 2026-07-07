@@ -9,6 +9,11 @@ from app.db.models import User, Competitor
 from app.services.competitor_service import CompetitorService
 from app.services.entitlement_service import EntitlementError, EntitlementService
 from apps.api.app_api.dependencies import get_current_user
+from apps.api.app_api.schemas import (
+    CompetitorListResponse,
+    CompetitorResponse,
+    DeleteResponse,
+)
 
 router = APIRouter(prefix="/competitors", tags=["competitors"])
 
@@ -63,7 +68,13 @@ def competitor_to_dict(competitor: Competitor) -> dict:
         "updated_at": competitor.updated_at.isoformat() if competitor.updated_at else None,
     }
 
-@router.get("")
+@router.get(
+    "",
+    response_model=CompetitorListResponse,
+    summary="List kompetitor",
+    description="Ambil semua kompetitor milik company. Butuh `analyze_competitor_flag` aktif (else 403).",
+    responses={403: {"description": "Fitur kompetitor belum diaktifkan"}},
+)
 def list_competitors(
     current_user: Annotated[User, Depends(get_current_user)],
     active_only: bool = Query(default=False),
@@ -76,7 +87,13 @@ def list_competitors(
         "total": len(competitors),
     }
 
-@router.post("")
+@router.post(
+    "",
+    response_model=CompetitorResponse,
+    summary="Tambah kompetitor",
+    description="Buat kompetitor baru. Butuh `analyze_competitor_flag` aktif.",
+    responses={403: {"description": "Fitur kompetitor belum diaktifkan"}},
+)
 def create_competitor(
     payload: CompetitorCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)]
@@ -86,7 +103,12 @@ def create_competitor(
     competitor = service.add_competitor(**payload.model_dump())
     return competitor_to_dict(competitor)
 
-@router.get("/{competitor_id}")
+@router.get(
+    "/{competitor_id}",
+    response_model=CompetitorResponse,
+    summary="Detail kompetitor",
+    responses={403: {"description": "Fitur kompetitor belum diaktifkan"}, 404: {"description": "Competitor not found"}},
+)
 def get_competitor(
     competitor_id: int,
     current_user: Annotated[User, Depends(get_current_user)]
@@ -98,7 +120,12 @@ def get_competitor(
         raise HTTPException(status_code=404, detail="Competitor not found.")
     return competitor_to_dict(competitor)
 
-@router.patch("/{competitor_id}")
+@router.patch(
+    "/{competitor_id}",
+    response_model=CompetitorResponse,
+    summary="Update sebagian field kompetitor",
+    responses={403: {"description": "Fitur kompetitor belum diaktifkan"}, 404: {"description": "Competitor not found"}},
+)
 def update_competitor(
     competitor_id: int,
     payload: CompetitorUpdateRequest,
@@ -120,7 +147,12 @@ def update_competitor(
             raise HTTPException(status_code=400, detail=str(e))
     return competitor_to_dict(changed)
 
-@router.post("/{competitor_id}/toggle-active")
+@router.post(
+    "/{competitor_id}/toggle-active",
+    response_model=CompetitorResponse,
+    summary="Aktif/nonaktifkan kompetitor",
+    responses={403: {"description": "Fitur kompetitor belum diaktifkan"}, 404: {"description": "Competitor not found"}},
+)
 def toggle_competitor_active(
     competitor_id: int,
     current_user: Annotated[User, Depends(get_current_user)]
@@ -132,7 +164,12 @@ def toggle_competitor_active(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.delete("/{competitor_id}")
+@router.delete(
+    "/{competitor_id}",
+    response_model=DeleteResponse,
+    summary="Hapus kompetitor",
+    responses={403: {"description": "Fitur kompetitor belum diaktifkan"}, 404: {"description": "Competitor not found"}},
+)
 def delete_competitor(
     competitor_id: int,
     current_user: Annotated[User, Depends(get_current_user)]

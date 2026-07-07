@@ -5,13 +5,22 @@ from fastapi import APIRouter, Depends, Query
 from app.db.models import User
 from app.services.fetch_log_service import FetchLogService
 from apps.api.app_api.dependencies import get_current_user
+from apps.api.app_api.schemas import FetchLogLatestResponse, FetchLogListResponse
 from apps.api.app_api.serializers import to_jsonable
 
 
 router = APIRouter(prefix="/fetch-logs", tags=["fetch logs"])
 
 
-@router.get("")
+@router.get(
+    "",
+    response_model=FetchLogListResponse,
+    summary="List log crawling",
+    description=(
+        "Ambil riwayat log crawling (fetch jobs). Filter opsional `location_id`, "
+        "`failed_only=true` untuk hanya yang gagal, dan `limit` (1–200)."
+    ),
+)
 def list_fetch_logs(
     location_id: int | None = Query(default=None),
     failed_only: bool = Query(default=False),
@@ -26,7 +35,12 @@ def list_fetch_logs(
     return to_jsonable({"items": logs, "total": len(logs)})
 
 
-@router.get("/latest")
+@router.get(
+    "/latest",
+    response_model=FetchLogLatestResponse,
+    summary="Log crawling terakhir",
+    description="Ambil satu log crawling paling baru untuk company. `item` bernilai null jika belum ada log.",
+)
 def latest_fetch_log(current_user: User = Depends(get_current_user)) -> dict:
     log = FetchLogService(company_id=current_user.company_id).get_last_log()
     return to_jsonable({"item": log})

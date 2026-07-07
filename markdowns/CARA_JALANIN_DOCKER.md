@@ -2,10 +2,16 @@
 
 Panduan singkat sehari-hari. Untuk runbook deployment lengkap ke server (reverse proxy, integrasi OneBox, troubleshooting), lihat `DOCKER_BACKEND_DEPLOYMENT_GUIDE.md`.
 
+## Topologi Database
+
+Compose ini **Supabase-only**: hanya ada 1 service (`api`). `DATABASE_URL` diambil dari `.env` dan menunjuk ke Supabase pooler (bukan Postgres bundled). Tidak ada container database lokal — data hidup di Supabase.
+
+> Butuh Postgres lokal ephemeral untuk dev offline? Versi compose dengan service `db` bundled ada di git history commit `c4fcf0e` (sebelum di-switch ke Supabase).
+
 ## Prasyarat
 
 - Docker Desktop (Windows/Mac) atau Docker Engine + Compose plugin (Linux) sudah jalan.
-- File `.env` ada di root repo (`cp .env.example .env` lalu sesuaikan).
+- File `.env` ada di root repo dengan `DATABASE_URL` Supabase yang valid (`cp .env.example .env` lalu isi).
 
 ## Jalanin
 
@@ -13,11 +19,12 @@ Panduan singkat sehari-hari. Untuk runbook deployment lengkap ke server (reverse
 docker compose up -d
 ```
 
-Itu saja. Yang terjadi otomatis:
+Yang terjadi otomatis:
 
-1. Postgres 16 start, ditunggu sampai benar-benar siap (healthcheck `pg_isready`).
-2. Image api di-build kalau belum ada.
-3. Container api start → `entrypoint.sh` jalankan `alembic upgrade head` (idempotent, aman diulang) → uvicorn start di port 8000.
+1. Image api di-build kalau belum ada.
+2. Container api start → `entrypoint.sh` jalankan `alembic upgrade head` terhadap **Supabase** (idempotent; kalau sudah di head = no-op) → uvicorn start di port 8000.
+
+> Karena migration jalan terhadap Supabase produksi tiap container start, hati-hati kalau ada migration baru yang destruktif. Saat ini DB sudah di head jadi aman (no-op).
 
 Cek status:
 
@@ -42,10 +49,11 @@ docker compose up -d            # start (build otomatis kalau perlu)
 docker compose build api        # rebuild image setelah ubah kode backend
 docker compose restart api      # restart api saja
 docker compose logs -f api      # tail log
-docker compose down             # stop semua (data Postgres AWET di volume)
-docker compose down -v          # stop + HAPUS data Postgres (fresh start)
+docker compose down             # stop container api (data di Supabase tidak tersentuh)
 docker compose exec api python -m alembic current   # cek posisi migration
 ```
+
+Catatan: `docker compose down` cuma mematikan container api — datanya di Supabase, jadi tidak ada risiko kehilangan data lokal.
 
 ## Test Flow Lengkap (register → login → hit API)
 
@@ -66,11 +74,8 @@ curl http://localhost:8000/api/locations -H "Authorization: Bearer <access_token
 
 ## Hal yang Sering Bikin Bingung
 
-**"Gua ubah DATABASE_URL di .env kok gak ngefek?"**
-`docker-compose.yml` sengaja men-set `DATABASE_URL` di blok `environment:` (menang atas `env_file:`) supaya container api selalu nunjuk ke Postgres bawaan compose (`db:5432`). `.env` lokal lo (yang nunjuk Supabase) tetap dipakai kalau lo jalanin backend TANPA Docker (`python -m uvicorn ...`).
-
-**Mau pakai Supabase/managed Postgres dari dalam Docker?**
-Hapus/override baris `environment.DATABASE_URL` di compose, set `DATABASE_URL` di `.env` ke URL Supabase, lalu `docker compose up -d api` (tanpa service `db`).
+**Ganti DB tinggal edit `.env`.**
+`DATABASE_URL` dibaca dari `.env` (via `env_file`), gak ada override hardcoded di compose lagi. Ubah `.env`, `docker compose up -d` ulang, selesai. JANGAN taruh password DB di `docker-compose.yml` — file itu ke-track git.
 
 **`REVIEW_SOURCE_MODE=selenium` di container?**
 Tidak didukung — Selenium butuh Chrome profile yang di-login manual (GUI). Di container pakai `mock` atau `google_places`. Config selenium di `.env` tidak bikin container error selama fetch selenium tidak dipanggil.

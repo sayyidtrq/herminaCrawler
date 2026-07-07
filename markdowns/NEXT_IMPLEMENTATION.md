@@ -2,6 +2,37 @@
 
 Update: 7 Juli 2026. Urutan berdasarkan prioritas nyata (bukan sekadar checklist lama — beberapa item di `checklist-system-design-v2.md` sudah tidak akurat, lihat catatan di bawah).
 
+## P0 — SECURITY: Supabase RLS + Data API (DITUNDA, WAJIB SEBELUM PRODUCTION)
+
+**Ditemukan & ditunda 7 Jul 2026.** DB Supabase (`ppirwqfvqnpubhokxyuz`, region ap-northeast-1) sekarang jadi DB utama backend (menggantikan bundled Postgres). Audit langsung ke DB menemukan:
+
+- **RLS mati (`relrowsecurity=false`) di SEMUA 9 tabel public**, termasuk `users` (berisi `password_hash`).
+- Role `anon` dan `authenticated` punya **grant penuh** (SELECT/INSERT/UPDATE/DELETE/TRUNCATE) di semua tabel.
+- **Data API / PostgREST project ini AKTIF & reachable** (`https://ppirwqfvqnpubhokxyuz.supabase.co/rest/v1/` balas 401 "No API key found" = server hidup).
+
+Dampak: siapa pun yang pegang **anon key** project (anon key didesain publik, biasa ketempel di frontend) bisa baca/hapus seluruh data lintas company lewat Data API — bypass total JWT + `company_id` isolation di FastAPI, karena Data API ngomong langsung ke Postgres.
+
+Kenapa aman untuk difix nanti tanpa mecahin apa-apa: backend konek sebagai role `postgres` (bypass RLS, grant tetap), frontend pakai FastAPI (bukan supabase-js/anon key). Jadi enable RLS + revoke anon TIDAK merusak backend/frontend.
+
+Fix (belum dijalankan — koordinasi tim dulu):
+```sql
+-- minimal: enable RLS di semua tabel (tanpa policy = deny-all buat anon/authenticated)
+alter table public.companies         enable row level security;
+alter table public.users             enable row level security;
+alter table public.locations         enable row level security;
+alter table public.reviews           enable row level security;
+alter table public.review_analysis   enable row level security;
+alter table public.fetch_logs        enable row level security;
+alter table public.competitors       enable row level security;
+alter table public.competitor_reviews enable row level security;
+alter table public.alembic_version   enable row level security;
+-- opsional (belt-and-suspenders): revoke grant Data API
+-- revoke all on all tables in schema public from anon, authenticated;
+```
+Alternatif paling bersih: matikan "Exposed schemas = public" di Data API settings dashboard kalau Data API memang tidak dipakai sama sekali.
+
+Terkait: **`JWT_SECRET_KEY` belum di-set di `.env`** → backend pakai fallback insecure yang ada di source publik. Untuk API yang konek ke DB prod dan bakal diekspos ke Infra/OneBox, ini WAJIB di-set ke value random sebelum deploy (kalau tidak, siapa pun bisa forge JWT).
+
 ## P0 — Deployment & Integrasi OneBox (arahan lead, sedang berjalan)
 
 1. **Push `main` ke origin** — 4 commit lokal (repo cleanup, Docker, merge, migration/test fix) belum di-push.

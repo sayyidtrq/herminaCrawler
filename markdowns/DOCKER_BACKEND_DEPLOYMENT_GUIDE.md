@@ -174,9 +174,37 @@ Catatan:
 - `markdowns/` tidak dibutuhkan runtime production.
 - `herminaCrawler-fe` tidak perlu di-list lagi — folder itu sudah dihapus dari repo (bagian 3).
 
-## 7. docker-compose.yml (versi final di repo)
+## 7. docker-compose.yml (versi final di repo — Supabase-only)
 
-Compose menjalankan backend dan PostgreSQL dalam satu stack dev/staging.
+Update 7 Jul 2026: compose disederhanakan jadi **Supabase-only**. Service `db` bundled dihapus; `api` mengambil `DATABASE_URL` (Supabase pooler) dari `.env`. Versi di repo sekarang:
+
+    services:
+      api:
+        build:
+          context: .
+          dockerfile: Dockerfile
+        container_name: hermina-review-api
+        restart: unless-stopped
+        env_file:
+          - .env
+        ports:
+          - "8000:8000"
+        volumes:
+          - ./exports:/app/exports
+        healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+          interval: 15s
+          timeout: 5s
+          retries: 5
+          start_period: 20s
+
+Catatan:
+- Kredensial DB TIDAK boleh ditaruh di compose (file ke-track git) — semua dari `.env` yang gitignored.
+- Migration jalan otomatis via `entrypoint.sh` terhadap Supabase tiap container start (idempotent).
+- Butuh Postgres lokal bundled untuk dev offline? Versi lama (service `db` + `api`) ada di git history commit `c4fcf0e`. Snippet di bawah ini dipertahankan sebagai referensi opsi bundled.
+
+<details>
+<summary>Referensi lama: compose dengan Postgres bundled (dev/staging offline)</summary>
 
     services:
       db:
@@ -230,6 +258,8 @@ Catatan penting:
 - `depends_on.condition: service_healthy` memastikan api baru start setelah Postgres benar-benar siap menerima koneksi, bukan sekadar container-nya hidup.
 - localhost di dalam container berarti container itu sendiri, bukan host server.
 - Password database wajib diganti di server.
+
+</details>
 
 ## 8. Environment Variable Minimum
 

@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.db.base import Base
-from app.db.models import FetchLog, Review
+from app.db.models import Company, FetchLog, Review
 from app.services.location_service import LocationService
 from app.services.selenium_fetch_service import SeleniumFetchService
 from app.utils.hashing import generate_selenium_review_hash
@@ -22,13 +22,14 @@ def make_settings(tmp_path):
         log_level="INFO",
         export_dir=tmp_path / "exports",
         database_url="sqlite+pysqlite:///:memory:",
+        cors_allowed_origins=("http://localhost:3000",),
         review_source_mode="selenium",
         google_maps_api_key=None,
         google_places_language_code="id",
         google_places_region_code="ID",
-        gemini_mode="mock",
-        gemini_api_key=None,
-        gemini_model="mock",
+        local_llm_base_url="http://localhost:11434/v1/",
+        local_llm_api_key="test",
+        local_llm_model="mock",
         fetch_limit_per_location=50,
         fetch_timeout_seconds=1,
         fetch_max_retry=0,
@@ -129,7 +130,20 @@ def test_selenium_fetch_stores_metadata_and_deduplicates(tmp_path):
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     settings = make_settings(tmp_path)
-    location = LocationService(session_factory).add_location(
+    with session_factory() as session:
+        company = Company(
+            name="Test Company",
+            ai_enable_flag=True,
+            total_enable_review=100,
+            analyze_competitor_flag=False,
+        )
+        session.add(company)
+        session.commit()
+        session.refresh(company)
+        company_id = company.id
+    location = LocationService(
+        company_id=company_id, session_factory=session_factory
+    ).add_location(
         hospital_name="Hermina",
         branch_name="Hermina Bekasi",
         city="Bekasi",
@@ -140,6 +154,7 @@ def test_selenium_fetch_stores_metadata_and_deduplicates(tmp_path):
         is_active=True,
     )
     service = SeleniumFetchService(
+        company_id=company_id,
         session_factory=session_factory,
         settings=settings,
         client=FakeSeleniumClient(),

@@ -29,6 +29,13 @@ def _as_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _as_list(name: str, default: list[str]) -> list[str]:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 @dataclass(frozen=True)
 class Settings:
     app_env: str
@@ -36,6 +43,7 @@ class Settings:
     log_level: str
     export_dir: Path
     database_url: str
+    cors_allowed_origins: tuple[str, ...]
     review_source_mode: str
     google_maps_api_key: str | None
     google_places_language_code: str
@@ -102,6 +110,12 @@ def get_settings() -> Settings:
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
         export_dir=export_dir,
         database_url=database_url,
+        cors_allowed_origins=tuple(
+            _as_list(
+                "CORS_ALLOWED_ORIGINS",
+                ["http://localhost:3000", "http://127.0.0.1:3000"],
+            )
+        ),
         review_source_mode=review_mode,
         google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY") or None,
         google_places_language_code=os.getenv(

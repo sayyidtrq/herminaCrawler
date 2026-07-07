@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import get_settings
 from apps.api.app_api.errors import register_exception_handlers
 from apps.api.app_api.routers import (
     analysis,
@@ -31,10 +32,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-        ],
+        allow_origins=list(get_settings().cors_allowed_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

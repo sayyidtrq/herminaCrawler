@@ -18,7 +18,12 @@ class PlaceResolveResponse(BaseModel):
     address: str | None = None
     google_maps_url: str | None = None
 
-@router.get("/resolve", response_model=PlaceResolveResponse)
+@router.get(
+    "/resolve",
+    response_model=PlaceResolveResponse,
+    summary="Resolve koordinat → Google place_id",
+    description="Mengubah lat/lng menjadi `external_place_id` (Google) beserta nama & alamat via Google Maps API. Butuh `GOOGLE_MAPS_API_KEY` di server.",
+)
 async def resolve_place_id(
     lat: float = Query(..., description="Latitude"),
     lng: float = Query(..., description="Longitude"),

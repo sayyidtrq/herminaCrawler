@@ -6,13 +6,22 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.services.settings_service import SettingsService
+from apps.api.app_api.schemas import HealthResponse
 
 
 router = APIRouter(tags=["health"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    summary="Health check",
+    description=(
+        "Cek status service beserta nama aplikasi, environment, dan "
+        "konektivitas database. Endpoint publik (tanpa auth)."
+    ),
+)
 def health_check() -> dict:
     settings = get_settings()
     try:

@@ -12,7 +12,12 @@ from apps.api.app_api.serializers import to_jsonable
 router = APIRouter(tags=["settings"])
 
 
-@router.get("/settings")
+@router.get(
+    "/settings",
+    summary="Konfigurasi runtime (non-rahasia)",
+    description="Mengembalikan konfigurasi publik aplikasi dan status ketersediaan API key (nilai key selalu di-masking).",
+    responses={200: {"content": {"application/json": {"example": {"app_env": "local", "app_name": "Hermina Review Intelligence", "review_source_mode": "selenium", "page_size": 20, "google_maps_api_key": "****", "google_maps_api_key_configured": True}}}}},
+)
 def get_public_settings(current_user: User = Depends(get_current_user)) -> dict:
     settings = get_settings()
     service = SettingsService(settings)
@@ -54,6 +59,11 @@ def get_public_settings(current_user: User = Depends(get_current_user)) -> dict:
     )
 
 
-@router.get("/settings/database-check")
+@router.get(
+    "/settings/database-check",
+    summary="Cek koneksi database",
+    description="Memeriksa apakah koneksi ke PostgreSQL berhasil.",
+    responses={200: {"content": {"application/json": {"example": {"ok": True, "message": "Database connection successful."}}}}},
+)
 def check_database_connection(current_user: User = Depends(get_current_user)) -> dict:
     return to_jsonable(SettingsService().check_database_connection())

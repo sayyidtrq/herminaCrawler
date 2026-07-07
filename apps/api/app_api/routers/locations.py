@@ -8,6 +8,11 @@ from fastapi import APIRouter, Query, Depends
 from app.db.models import User
 from app.services.location_service import LocationService
 from apps.api.app_api.dependencies import get_current_user
+from apps.api.app_api.schemas import (
+    DeleteResponse,
+    LocationListResponse,
+    LocationResponse,
+)
 from apps.api.app_api.serializers import location_to_dict
 
 
@@ -44,7 +49,12 @@ class LocationUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
-@router.get("")
+@router.get(
+    "",
+    response_model=LocationListResponse,
+    summary="List lokasi/cabang RS",
+    description="Ambil semua lokasi milik company. Set `active_only=true` untuk hanya lokasi aktif.",
+)
 def list_locations(
     current_user: Annotated[User, Depends(get_current_user)],
     active_only: bool = Query(default=False),
@@ -57,7 +67,12 @@ def list_locations(
     }
 
 
-@router.post("")
+@router.post(
+    "",
+    response_model=LocationResponse,
+    summary="Tambah lokasi",
+    description="Buat lokasi/cabang RS baru. Field wajib: `branch_name`, `external_place_id`.",
+)
 def create_location(
     payload: LocationCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)]
@@ -67,7 +82,12 @@ def create_location(
     return location_to_dict(location)
 
 
-@router.get("/{location_id}")
+@router.get(
+    "/{location_id}",
+    response_model=LocationResponse,
+    summary="Detail lokasi",
+    responses={404: {"description": "Location not found"}},
+)
 def get_location(
     location_id: int,
     current_user: Annotated[User, Depends(get_current_user)]
@@ -79,7 +99,13 @@ def get_location(
     return location_to_dict(location)
 
 
-@router.patch("/{location_id}")
+@router.patch(
+    "/{location_id}",
+    response_model=LocationResponse,
+    summary="Update sebagian field lokasi",
+    description="Update field lokasi (partial). Hanya field yang dikirim yang diubah.",
+    responses={404: {"description": "Location not found"}},
+)
 def update_location(
     location_id: int, 
     payload: LocationUpdateRequest,
@@ -98,7 +124,11 @@ def update_location(
     return location_to_dict(changed)
 
 
-@router.post("/{location_id}/toggle-active")
+@router.post(
+    "/{location_id}/toggle-active",
+    response_model=LocationResponse,
+    summary="Aktif/nonaktifkan lokasi",
+)
 def toggle_location_active(
     location_id: int,
     current_user: Annotated[User, Depends(get_current_user)]
@@ -107,7 +137,12 @@ def toggle_location_active(
     return location_to_dict(service.toggle_active(location_id))
 
 
-@router.delete("/{location_id}")
+@router.delete(
+    "/{location_id}",
+    response_model=DeleteResponse,
+    summary="Hapus lokasi",
+    responses={404: {"description": "Location not found"}},
+)
 def delete_location(
     location_id: int,
     current_user: Annotated[User, Depends(get_current_user)]

@@ -7,6 +7,7 @@ from app.db.models import User
 from app.services.analysis_service import AnalysisService
 from app.services.entitlement_service import EntitlementError, EntitlementService
 from apps.api.app_api.dependencies import get_current_user
+from apps.api.app_api.schemas import AnalysisPendingResponse
 from apps.api.app_api.serializers import to_jsonable
 
 
@@ -25,7 +26,13 @@ def _require_ai_enabled(company_id: int) -> None:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
-@router.post("/pending")
+@router.post(
+    "/pending",
+    response_model=AnalysisPendingResponse,
+    summary="Jalankan analisis AI untuk review pending",
+    description="Analisis semua review yang belum dianalisis (opsional difilter `location_id`/`rating`). Butuh `ai_enable_flag` aktif (else 403).",
+    responses={403: {"description": "AI belum diaktifkan untuk company ini"}},
+)
 def analyze_pending(payload: AnalyzePendingRequest, current_user: User = Depends(get_current_user)) -> dict:
     _require_ai_enabled(current_user.company_id)
     result = AnalysisService(company_id=current_user.company_id).analyze_pending(
@@ -34,13 +41,29 @@ def analyze_pending(payload: AnalyzePendingRequest, current_user: User = Depends
     return to_jsonable(result)
 
 
-@router.post("/locations/{location_id}/rerun")
+@router.post(
+    "/locations/{location_id}/rerun",
+    summary="Ulang analisis AI 1 lokasi",
+    description="Jalankan ulang analisis AI untuk semua review pada satu lokasi. Butuh `ai_enable_flag` aktif.",
+    responses={
+        200: {"content": {"application/json": {"example": {"total": 40, "success": 38, "failed": 2}}}},
+        403: {"description": "AI belum diaktifkan untuk company ini"},
+    },
+)
 def rerun_location(location_id: int, current_user: User = Depends(get_current_user)) -> dict:
     _require_ai_enabled(current_user.company_id)
     return to_jsonable(AnalysisService(company_id=current_user.company_id).rerun_location(location_id))
 
 
-@router.post("/reviews/{review_id}/rerun")
+@router.post(
+    "/reviews/{review_id}/rerun",
+    summary="Ulang analisis AI 1 review",
+    description="Jalankan ulang analisis AI untuk satu review. Butuh `ai_enable_flag` aktif.",
+    responses={
+        200: {"content": {"application/json": {"example": {"sentiment": "negative", "sentiment_score": -0.82, "issue_category": "waktu_tunggu", "urgency": "high", "summary": "..."}}}},
+        403: {"description": "AI belum diaktifkan untuk company ini"},
+    },
+)
 def rerun_review(review_id: int, current_user: User = Depends(get_current_user)) -> dict:
     _require_ai_enabled(current_user.company_id)
     return to_jsonable(AnalysisService(company_id=current_user.company_id).rerun_review(review_id))

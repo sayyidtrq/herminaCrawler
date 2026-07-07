@@ -64,7 +64,13 @@ class UserResponse(BaseModel):
     total_enable_review: int
     analyze_competitor_flag: bool
 
-@router.post("/register", response_model=UserResponse)
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    summary="Daftar company + user admin",
+    description="Membuat company baru sekaligus user admin pertamanya. Endpoint publik.",
+    responses={400: {"description": "Email already registered"}},
+)
 def register_company(payload: CompanyRegisterRequest, db: Session = Depends(get_db_session)):
     # Check if user exists
     existing_user = db.scalar(select(User).where(User.email == payload.admin_email))
@@ -102,7 +108,13 @@ def register_company(payload: CompanyRegisterRequest, db: Session = Depends(get_
         analyze_competitor_flag=company.analyze_competitor_flag
     )
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Login → JWT bearer token",
+    description="Autentikasi dengan email (`username`) + password (form-urlencoded). Mengembalikan access token untuk header `Authorization: Bearer`.",
+    responses={401: {"description": "Incorrect email or password"}},
+)
 def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db_session)
@@ -120,7 +132,12 @@ def login_for_access_token(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=UserResponse)
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Profil user + info company",
+    description="Mengembalikan data user yang sedang login beserta company_id, nama company, dan flag entitlement (AI, kuota, kompetitor).",
+)
 def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
     company = current_user.company
     return UserResponse(

@@ -27,7 +27,31 @@ class LocationPipelineRequest(BaseModel):
     source: str | None = None
 
 
-@router.post("/location")
+@router.post(
+    "/location",
+    summary="Jalankan pipeline 1 lokasi (fetch → analyze → export)",
+    description=(
+        "Menjalankan beberapa langkah sekaligus untuk satu lokasi: crawling, analisis AI, "
+        "dan export CSV — masing-masing bisa di-toggle (`fetch`, `analyze`, `export_csv`). "
+        "Response berisi `steps` dengan hasil tiap langkah dan `status` keseluruhan."
+    ),
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "location_id": 5,
+                        "source": "selenium",
+                        "dry_run": False,
+                        "status": "success",
+                        "steps": {"fetch": {"status": "success"}, "analysis": {"total": 40}},
+                    }
+                }
+            }
+        },
+        404: {"description": "Location not found"},
+    },
+)
 def run_location_pipeline(payload: LocationPipelineRequest, current_user: User = Depends(get_current_user)) -> dict:
     settings = get_settings()
     if LocationService(company_id=current_user.company_id).get_location(payload.location_id) is None:

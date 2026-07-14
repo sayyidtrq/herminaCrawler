@@ -18,6 +18,7 @@ from app.services.integration_review_service import (
     IntegrationRequestError,
     IntegrationReviewService,
 )
+from app.utils.integration_cursor import CURSOR_VERSION, fingerprint
 from apps.api.app_api.integration_schemas import (
     API_VERSION,
     DEFAULT_LIMIT,
@@ -115,7 +116,11 @@ def list_integration_reviews(
     limit: int = Query(default=DEFAULT_LIMIT, description="1..200"),
     cursor: str | None = Query(
         default=None,
-        description="Opaque cursor dari next_cursor. Tidak boleh digabung dengan updated_since.",
+        description=(
+            "Opaque cursor dari next_cursor (lanjut siklus berjalan) atau "
+            "checkpoint_cursor (mulai siklus berikutnya). Tidak boleh digabung "
+            "dengan updated_since."
+        ),
     ),
     updated_since: str | None = Query(
         default=None,
@@ -153,13 +158,16 @@ def list_integration_reviews(
         location_id=location_id,
     )
 
-    # Deliberately omits the token, the cursor body, and review_text (VOC-CS-01 §13).
+    # Omits the token, review_text, and the cursor body — a logged cursor is a
+    # replayable pointer into a tenant's data, so only a fingerprint goes out.
     logger.info(
         "integration.reviews.request",
         extra={
             "request_id": request_id,
             "key_id": principal.key_id,
             "company_id": principal.company_id,
+            "cursor_version": CURSOR_VERSION,
+            "cursor_fp": fingerprint(cursor) if cursor else None,
             "limit": limit,
             "location_id": location_id,
             "item_count": len(result["items"]),
@@ -174,6 +182,7 @@ def list_integration_reviews(
             "limit": limit,
             "has_more": result["has_more"],
             "next_cursor": result["next_cursor"],
+            "checkpoint_cursor": result["checkpoint_cursor"],
             "snapshot_at": result["snapshot_at"],
         },
         "meta": {"api_version": API_VERSION, "request_id": request_id},

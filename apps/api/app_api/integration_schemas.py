@@ -102,7 +102,12 @@ class IntegrationReviewItem(_Base):
 class IntegrationPage(_Base):
     limit: int
     has_more: bool
+    # Exactly one of these is set. next_cursor means "more rows in this snapshot";
+    # checkpoint_cursor means "snapshot drained, resume the next cycle from here".
+    # The consumer must only persist checkpoint_cursor after the whole cycle has
+    # been ingested — persisting it early is how rows get skipped.
     next_cursor: str | None = None
+    checkpoint_cursor: str | None = None
     snapshot_at: datetime
 
     @field_serializer("snapshot_at")

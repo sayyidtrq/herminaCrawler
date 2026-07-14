@@ -144,6 +144,9 @@ def seeded(session_factory):
             raw_payload={"secret": "must-not-leak"},
             created_at=BASE_TIME,
             updated_at=BASE_TIME + timedelta(hours=1),
+            # Set explicitly to the value the CS-02 backfill produces
+            # (max of updated_at, created_at, latest analysis created_at).
+            sync_updated_at=BASE_TIME + timedelta(hours=2),
         )
         negative = Review(
             company_id=tenant.id,
@@ -159,6 +162,7 @@ def seeded(session_factory):
             raw_payload={"secret": "must-not-leak"},
             created_at=BASE_TIME + timedelta(days=2),
             updated_at=BASE_TIME + timedelta(days=2, hours=1),
+            sync_updated_at=BASE_TIME + timedelta(days=2, hours=2),
         )
         unanalyzed = Review(
             company_id=tenant.id,
@@ -172,6 +176,8 @@ def seeded(session_factory):
             raw_payload={"secret": "must-not-leak"},
             created_at=BASE_TIME + timedelta(days=3),
             updated_at=BASE_TIME + timedelta(days=3),
+            # No analysis, so the watermark is just the review's own updated_at.
+            sync_updated_at=BASE_TIME + timedelta(days=3),
         )
         session.add_all([positive, negative, unanalyzed])
         session.commit()
@@ -281,7 +287,9 @@ def test_success_response_validates_against_contract(client):
     assert len(payload["data"]) == 3
     assert payload["page"]["limit"] == 100
     assert payload["page"]["has_more"] is False
+    # Snapshot drained in one page: no next_cursor, but a checkpoint to resume from.
     assert payload["page"]["next_cursor"] is None
+    assert payload["page"]["checkpoint_cursor"]
     assert payload["meta"]["api_version"] == "v1"
     assert payload["meta"]["request_id"]
 
@@ -382,16 +390,25 @@ def test_every_timestamp_is_utc_with_a_z_suffix(client):
         assert parsed.tzinfo is not None
 
 
-def test_sync_updated_at_follows_the_cs02_watermark_formula(client, seeded):
-    """max(updated_at, created_at, last analysis created_at) — the value CS-02 backfills."""
+def test_sync_updated_at_is_exposed_and_differs_from_updated_at(client, seeded):
+    """The watermark is its own column, not an alias of updated_at.
+
+    A consumer paging on updated_at would miss a review whose analysis landed
+    later, which is exactly the drift the two timestamps below encode.
+    """
     payload = _get(client, limit=100)
     by_hash = {item["review_hash"]: item for item in payload["data"]}
 
-    # Analysis landed after the review row was last touched, so it wins.
-    assert by_hash["hash-positive"]["sync_updated_at"] == "2026-07-10T04:00:00Z"
+    # Analysis landed after the review row was last touched, so it moved the
+    # watermark past updated_at.
+    positive = by_hash["hash-positive"]
+    assert positive["updated_at"] == "2026-07-10T03:00:00Z"
+    assert positive["sync_updated_at"] == "2026-07-10T04:00:00Z"
+
     assert by_hash["hash-negative"]["sync_updated_at"] == "2026-07-12T04:00:00Z"
-    # No analysis: falls back to the review's own updated_at.
-    assert by_hash["hash-unanalyzed"]["sync_updated_at"] == "2026-07-13T02:00:00Z"
+    # No analysis: watermark equals the review's own updated_at.
+    unanalyzed = by_hash["hash-unanalyzed"]
+    assert unanalyzed["sync_updated_at"] == unanalyzed["updated_at"]
 
 
 # --------------------------------------------------------------------------- #

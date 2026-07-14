@@ -23,15 +23,15 @@ X-Request-ID: <uuid, opsional>
 | Parameter | Tipe | Default | Aturan |
 |---|---|---|---|
 | `limit` | integer | `100` | 1..200. Di luar rentang → `400 INVALID_PARAMETER`. |
-| `cursor` | string opaque | – | Nilai dari `page.next_cursor` respons sebelumnya. **Jangan di-parse** — isinya internal dan akan berubah di CS-02. |
+| `cursor` | string opaque | – | `next_cursor` (lanjut siklus) atau `checkpoint_cursor` (mulai siklus baru). **Jangan di-parse.** |
 | `updated_since` | string | – | UTC ISO 8601 **wajib bersuffix `Z`**. Hanya untuk request pertama (tanpa cursor). Tanpa offset eksplisit → `400`. |
 | `location_id` | integer | – | Opsional. Harus milik company pemilik token, kalau tidak → `404 LOCATION_NOT_FOUND`. |
 
 ### Aturan cursor
 
 - `cursor` **tidak boleh** digabung dengan `updated_since` → `400 INVALID_CURSOR_CONTEXT`.
-- `location_id` **tidak boleh** berubah di tengah paginasi; filter dikunci di dalam cursor → `400 INVALID_CURSOR_CONTEXT`.
-- Cursor rusak/dipalsukan → `400 INVALID_CURSOR`.
+- `location_id` **tidak perlu dikirim ulang** bersama cursor — filter sudah terkunci di dalamnya. Tapi kalau kalian kirim dan **berbeda** dari yang dipakai saat cursor dibuat → `400 INVALID_CURSOR_CONTEXT`. Mengubah filter di tengah siklus akan menggeser baris melewati posisi cursor, dan baris itu tidak akan pernah terkirim.
+- Cursor rusak, dipalsukan, kedaluwarsa, atau milik tenant lain → `400 INVALID_CURSOR` (generik, tanpa merinci sebabnya).
 
 ### `X-Request-ID`
 
@@ -48,11 +48,19 @@ Kalau dikirim, nilainya dipantulkan di `meta.request_id` dan dipakai di log kami
     "limit": 100,
     "has_more": false,
     "next_cursor": null,
+    "checkpoint_cursor": "opaque-signed-cursor",
     "snapshot_at": "2026-07-13T05:00:00Z"
   },
   "meta": { "api_version": "v1", "request_id": "uuid" }
 }
 ```
+
+**Tepat satu dari `next_cursor` / `checkpoint_cursor` selalu terisi:**
+
+| `has_more` | `next_cursor` | `checkpoint_cursor` | Artinya |
+|---|---|---|---|
+| `true` | terisi | `null` | Masih ada halaman di siklus ini. Lanjut pakai `next_cursor`. |
+| `false` | `null` | terisi | Siklus habis. **Simpan `checkpoint_cursor`**, pakai sebagai `cursor` awal siklus berikutnya. |
 
 Contoh lengkap 3 review (positive, negative-critical, unanalyzed) ada di `tests/fixtures/voc_reviews_v1.json`. **Pakai file itu sebagai input mock RI-04** — file yang sama dipakai test kami, jadi kalau parser kalian lolos terhadapnya, parser kalian sinkron dengan produksi.
 
@@ -76,8 +84,8 @@ Semua timestamp **UTC ISO 8601 dengan suffix `Z`** (mis. `2026-07-12T03:00:00Z`)
 | `review_time` | datetime | **ya** | Waktu review dibuat di sumber. |
 | `owner_response_text` | string | **ya** | |
 | `owner_response_time` | datetime | **ya** | |
-| `updated_at` | datetime | tidak | Kapan baris review terakhir berubah di DB kami. |
-| `sync_updated_at` | datetime | tidak | **Watermark sinkronisasi.** Lihat §3. |
+| `updated_at` | datetime | tidak | Kapan baris review terakhir berubah di DB kami. **Jangan dipakai untuk delta-sync** — lihat §3. |
+| `sync_updated_at` | datetime | tidak | **Watermark sinkronisasi. Ini yang dipakai untuk delta-sync.** Lihat §3. |
 | `analyzed` | boolean | tidak | `false` = analisis AI belum jalan. |
 | `sentiment` | enum | **ya** | Null ⟺ `analyzed=false`. |
 | `sentiment_score` | float | **ya** | 0.0–1.0. Null ⟺ `analyzed=false`. |
@@ -107,28 +115,43 @@ Perlakukan nilai tak dikenal sebagai `unknown`/`other` daripada melempar error �
 
 ## 3. `sync_updated_at` dan semantik delta-sync
 
-`sync_updated_at` = **kapan data ini siap disinkronkan**, bukan sekadar kapan barisnya berubah. Nilainya:
+`sync_updated_at` adalah **kolom watermark** khusus sinkronisasi. Backfill awalnya:
 
 ```
 max(review.updated_at, review.created_at, waktu analisis terakhir review itu)
 ```
 
-Bedanya dengan `updated_at`: kalau review sudah lama masuk tapi analisis AI-nya baru selesai hari ini, `updated_at` **tidak bergerak** tapi `sync_updated_at` **bergerak**. Kalau kalian delta-sync pakai `updated_at`, kalian akan **melewatkan review yang baru dianalisis**.
+Setelah itu, dia **hanya** bergerak kalau ada penulis yang sengaja menandai "review ini perlu dikirim ulang" — misalnya waktu analisis AI selesai, yang digerakkan **di transaksi yang sama** dengan penyimpanan analisis.
 
-> **Selalu pakai `sync_updated_at` sebagai watermark, jangan `updated_at`.**
+> **Selalu pakai `sync_updated_at` sebagai watermark. Jangan pakai `updated_at`.**
 
-Alur yang benar:
+### Kenapa bukan `updated_at`?
 
-1. Request pertama: `?updated_since=<watermark tersimpan>&limit=100`
-2. Selama `has_more=true`: request berikutnya `?cursor=<next_cursor>` (**tanpa** `updated_since`)
-3. Setelah seluruh siklus sukses di-ingest, simpan `sync_updated_at` tertinggi yang kalian terima sebagai watermark baru
-4. Kalau ada page yang gagal, **jangan** majukan watermark — ulangi dari cursor terakhir yang sukses
+Jujur: `updated_at` **juga ikut bergerak** waktu analisis selesai, karena barisnya memang berubah. Jadi ini bukan soal "kalian pasti kelewat data hari ini". Alasannya lebih ke jaminan jangka panjang:
 
-### ⚠️ Status implementasi (penting)
+- `updated_at` bergerak otomatis (`onupdate`) pada **penulisan apa pun** ke baris review — termasuk skrip perawatan atau backfill yang tidak ada hubungannya dengan konten. Kalian akan dapat kiriman ulang palsu, dan lebih parah: kode kami di masa depan bisa menyentuh baris tanpa bermaksud memicu resync, dan kalian tidak akan tahu bedanya.
+- `sync_updated_at` **tidak punya `onupdate`**. Dia bergerak hanya kalau penulisnya eksplisit memutuskan begitu. Itu yang membuatnya bisa dijanjikan sebagai kontrak.
+- Cursor dan index (`company_id, sync_updated_at, id`) dibangun di atasnya. Paging dengan `updated_at` tidak didukung dan tidak akan konsisten.
 
-- **`sync_updated_at` sudah benar nilainya**, dihitung on-the-fly dengan rumus di atas. VOC-CS-02 akan memateralisasi jadi kolom terindeks dengan **nilai yang identik** — jadi nilainya tidak akan berubah, dan parser kalian aman dibuat sekarang.
-- **Cursor saat ini masih placeholder** (offset sederhana, belum ditandatangani, urutan berbasis `updated_at`). Bentuk respons sudah final, tapi **jangan andalkan stabilitas cursor lintas insert bersamaan sampai CS-02 selesai.** CS-02 mengganti dengan keyset bertanda tangan atas `(sync_updated_at, id)` plus `checkpoint_cursor` di halaman terakhir.
-- Karena cursor opaque, penggantian itu **tidak mengubah contract ini** — asalkan kalian tidak mem-parse isinya.
+### Alur siklus yang benar
+
+1. **Siklus pertama kali** (belum punya checkpoint): `?limit=100`, opsional `&updated_since=2026-07-01T00:00:00Z` sebagai batas bawah bootstrap.
+2. **Selama `has_more=true`**: `?cursor=<next_cursor>` saja — **jangan** kirim ulang `updated_since`, `limit`, atau `location_id`; semuanya sudah terkunci di dalam cursor.
+3. **Waktu `has_more=false`**: kalian dapat `checkpoint_cursor`.
+4. **Simpan `checkpoint_cursor` HANYA setelah seluruh siklus berhasil di-ingest.** Kalau ada satu batch gagal, **jangan** simpan — ulangi dari checkpoint lama. Dedup di sisi kalian (pakai `review_hash`) yang menjaga idempotency.
+5. **Siklus berikutnya**: `?cursor=<checkpoint_cursor tersimpan>`.
+
+### Jaminan snapshot
+
+Batas atas dibekukan saat siklus dibuka. Review yang masuk **di tengah** kalian paging tidak akan menyelinap ke siklus berjalan dan menggeser posisi cursor — dia muncul di siklus berikutnya. Ini yang mencegah review terlewat diam-diam waktu data terus masuk sambil kalian menarik.
+
+### Cursor
+
+Cursor adalah **string opaque bertanda tangan** (HMAC-SHA256). Isinya terikat pada tenant, filter, dan posisi snapshot kalian.
+
+- **Jangan di-parse, jangan dibuat sendiri, jangan dipakai lintas kredensial.** Cursor milik tenant lain ditolak `400` walaupun tanda tangannya sah.
+- Cursor kedaluwarsa setelah **30 hari**. Consumer yang tertinggal selama itu harus bootstrap ulang dengan `updated_since`.
+- Layout internalnya **bukan** bagian dari contract v1 dan bisa berubah kapan saja tanpa memecahkan kalian — selama kalian memperlakukannya sebagai string buram.
 
 ---
 
@@ -163,8 +186,8 @@ Semua error memakai envelope yang sama:
 | Status | Code | Kapan |
 |---|---|---|
 | `400` | `INVALID_PARAMETER` | `limit` di luar 1..200, `updated_since` bukan ISO UTC, tipe parameter salah |
-| `400` | `INVALID_CURSOR` | Cursor rusak/dipalsukan |
-| `400` | `INVALID_CURSOR_CONTEXT` | Cursor digabung dengan `updated_since`, atau `location_id` berubah di tengah paginasi |
+| `400` | `INVALID_CURSOR` | Cursor rusak, dipalsukan, kedaluwarsa (>30 hari), atau diterbitkan untuk tenant lain |
+| `400` | `INVALID_CURSOR_CONTEXT` | Cursor digabung dengan `updated_since`, atau `location_id` berbeda dari yang terkunci di cursor |
 | `401` | `INVALID_SERVICE_TOKEN` | Token malformed/tidak dikenal/kedaluwarsa/dicabut *(aktif setelah CS-03)* |
 | `403` | `INSUFFICIENT_SCOPE` | Token tidak punya `reviews:read` |
 | `404` | `LOCATION_NOT_FOUND` | `location_id` tidak ada **atau** milik tenant lain (sengaja tidak dibedakan) |

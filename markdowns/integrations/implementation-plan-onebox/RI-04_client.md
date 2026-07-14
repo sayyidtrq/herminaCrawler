@@ -106,8 +106,14 @@ echo count($r['items'] ?? []);
 ## 6. Risiko & Rollback
 State di Swoole: **jangan** simpan token di `static` (long-running process — pelajaran dari developer_guide §Swoole). Token di property instance OK karena task CLI short-lived. Rollback: hapus file class + revert config dev.
 
-## 7. Temuan & Deviasi
-(diisi saat eksekusi — termasuk command invoke task CLI)
+## 7. Temuan & Deviasi (eksekusi 2026-07-14)
+
+1. **SELESAI** — file: `app/library/VoiceOfCustomerSystemClient.php` (lolos `php -l`, smoke test mock OK).
+2. **Deviasi konfigurasi (ikut D9/D6 revisi):** credential TIDAK di `development.php` — dibaca dari row `Connection` (kolom `Url`/`UserId`/`Password`, extras di `Options` JSON). Constructor: `new VoiceOfCustomerSystemClient($username, $password, $baseUrl, $extras)`.
+3. **Login kontrak beda dari CiptalifeApi:** `POST /api/auth/login` pakai **x-www-form-urlencoded** (`username`, `password`) — verified dari `auth.py` (OAuth2PasswordRequestForm), bukan JSON. Response `{access_token, token_type}`.
+4. **Command invoke CLI (verified):** `php app/bootstrap.php voice_of_customer_system <action> <connId>` — dijalankan **di dalam container** `dev_DNGO19-3346_webapp` (`docker exec <container> php app/bootstrap.php ...`); di host WSL tidak ada `vendor/`. Nama task WAJIB underscore (`voice_of_customer_system`) karena Phalcon camelize per-underscore → `VoiceOfCustomerSystemTask`.
+5. **Mock file path harus visible dari container:** `/mnt/c/...` tidak ke-mount; `/tmp` host WSL ke-mount ke container → fixture ditaruh `/tmp/voc_reviews_sample.json` (source of truth: `markdowns/integrations/implementation-plan/fixtures/reviews_sample.json` di repo VoC, copy manual). Catatan: `/tmp` hilang saat WSL restart — copy ulang kalau perlu.
+6. Fixture dibuat dari 10 review real DB VoC (semua analyzed), shape persis `ReviewListResponse` (`location`=branch_name, `reviewer_name` fallback "Anonymous" — verified `review_service.py:_row_to_dict`).
 
 ## 8. API Gap / Handoff ke Codex
 Kalau login form-urlencoded bermasalah dari curl PHP, minta Codex sediakan JSON login body (opsional).

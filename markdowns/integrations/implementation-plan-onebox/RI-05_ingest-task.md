@@ -116,8 +116,22 @@ Ekstra: matikan VoC di tengah sync → pastikan tidak ada Ticket "setengah jadi"
 - Timezone `review_time` (+07:00) vs kolom datetime MySQL — konversi eksplisit, jangan andalkan default server.
 - Rollback dev: `DELETE` Ticket/Message/MessageContent hasil ingest via `m.ObjectName='Review'` + `RemoteId` (catat query-nya sebelum eksekusi massal).
 
-## 7. Temuan & Deviasi
-(diisi saat eksekusi — terutama kolom wajib Connection & master Media)
+## 7. Temuan & Deviasi (eksekusi 2026-07-14)
+
+1. **SELESAI dengan bentuk D9 (Provider pattern), bukan task SonarTask-style.** File: `app/services/Provider/VoiceOfCustomerSystemProvider.php` (receive + rowReview + map + ensureMessage + applyAnalysis) + `app/tasks/VoiceOfCustomerSystemTask.php` (CLI manual: `receive`/`analysis`/`health`/`processpending`).
+2. **Seed dev DB (sudah dijalankan, SQL di `$CLAUDE_JOB/tmp` — dicatat di sini):**
+   - `Reference`: `PVD97 / Provider / VoiceOfCustomerSystem` (pola PVD96 Ciptalife).
+   - `Connection` **Id 1039**: SiteId=169, MediaId='GBUSINESS', ProviderId='PVD97', Code='VOC', StatusId='CNS1', Options=`{"mock":true,"mock_file":"/tmp/voc_reviews_sample.json","page_size":50,"max_pages":10}`. Kolom `Url`/`UserId`/`Password` kosong — diisi saat live test (RI-03).
+   - MediaId TIDAK bikin baru — reuse `GBUSINESS` (D5 revisi).
+3. **Hasil smoke test (mock, 10 review real):**
+   - Run 1: 10 Message + MessageContent (Meta lengkap) + Contact per reviewer → 10 Ticket (TT1/TS2/GBUSINESS, `Sentiment`=rating 1–5 otomatis dari Meta.star ✓).
+   - `analysis`: 10 ticket ke-update — Description=summary, Solution=recommended_action, PriorityId=TP1(low)/TP2(medium) ✓.
+   - Run 2: 10× "already ensured", total tetap 10/10 → **idempotent ✓**.
+4. **Ticket dibuat ASYNC** oleh job `process` (broker RabbitMQ) — di dev tanpa worker aktif, message nyangkut `ObjectId=NULL`. Solusi dev: action `processpending <connId>` (proses sinkron). Di env dengan worker jalan, ini tidak perlu.
+5. Dedup pipeline = `SiteId+MediaId+RemoteId` (bukan cuma RemoteId+SiteId seperti draft §Step 2) — bawaan `ensureMessage`, tidak perlu kode dedup sendiri.
+6. Transaksi & rollback ditangani `ensureMessageAsync` (begin/commit/rollback per message) — tidak perlu transaksi manual di provider.
+7. `Ticket.PriorityId` NULL saat dibuat `addTicket` — diisi pass kedua (`applyAnalysis`). `CategoryId` menunggu D7/RI-07 (nilai `issue_category` sudah aman tersimpan di Meta).
+8. Cleanup dev (kalau mau reset): `DELETE` Ticket/Message/MessageContent/MessageUser via `Message.ConnectionId=1039` (catat urutan FK; jangan jalankan tanpa perlu).
 
 ## 8. API Gap / Handoff ke Codex
 Pastikan `review_hash` + field analysis (sentiment, urgency, summary, recommended_action) ikut flat di item response (per sample superprompt §5.2 sudah ada — konfirmasi).

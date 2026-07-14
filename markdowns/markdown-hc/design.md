@@ -1,4 +1,4 @@
-You are redesigning the entire Hermina Review Intelligence product.
+You are redesigning the entire Review System product.
 
 This is NOT just a dashboard redesign.
 

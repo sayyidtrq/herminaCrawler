@@ -1,6 +1,6 @@
 ﻿# Panduan Deploy Backend Review Intelligence dengan Docker
 
-Dokumen ini adalah runbook praktis untuk deploy backend Hermina Review Intelligence sebagai 3rd party service yang menyediakan REST API untuk dipull oleh OneBox.
+Dokumen ini adalah runbook praktis untuk deploy backend Review System sebagai 3rd party service yang menyediakan REST API untuk dipull oleh OneBox.
 
 Target pembaca:
 - Developer yang diberi akses server dev/staging.
@@ -266,7 +266,7 @@ Catatan penting:
 Isi .env di server.
 
     APP_ENV=staging
-    APP_NAME=Hermina Review Intelligence
+    APP_NAME=Review System
     LOG_LEVEL=INFO
     EXPORT_DIR=exports
 
@@ -379,7 +379,7 @@ Kalau perlu re-run manual (misalnya debugging):
 
 Expected response (field `database` ikut memverifikasi koneksi + schema):
 
-    {"status":"ok","app":"Hermina Review Intelligence","env":"staging","database":{"ok":true,"message":"OK"}}
+    {"status":"ok","app":"Review System","env":"staging","database":{"ok":true,"message":"OK"}}
 
 Kalau `database.ok` bernilai false, endpoint tetap balas 200 (by design,
 supaya healthcheck Docker tidak me-restart container gara-gara DB blip

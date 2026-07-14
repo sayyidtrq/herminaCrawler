@@ -1,4 +1,4 @@
-# Panduan Penggunaan Hermina Review Intelligence
+# Panduan Penggunaan Review System
 
 Dokumen ini menjelaskan cara menjalankan aplikasi dari awal dan menggunakan
 setiap fitur yang tersedia.
@@ -76,7 +76,7 @@ Konfigurasi minimum:
 
 ```env
 APP_ENV=local
-APP_NAME=Hermina Review Intelligence
+APP_NAME=Review System
 LOG_LEVEL=INFO
 EXPORT_DIR=exports
 

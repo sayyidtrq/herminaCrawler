@@ -1,4 +1,4 @@
-﻿# Cara Menjalankan Web App Hermina Review Intelligence
+﻿# Cara Menjalankan Web App Review System
 
 Web app ini butuh dua proses:
 

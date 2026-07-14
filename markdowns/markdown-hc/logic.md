@@ -1,6 +1,6 @@
 # 01_LOGIC.md
 
-# Hermina Review Intelligence — Application Logic Specification
+# Review System — Application Logic Specification
 
 ## 1. Project Objective
 
@@ -30,7 +30,7 @@ After running the command, the application must open an interactive terminal men
 Use this application name:
 
 ```text
-Hermina Review Intelligence
+Review System
 ```
 
 Alternative internal short name:
@@ -101,7 +101,7 @@ The program must show:
 
 ```text
 ========================================
-     Hermina Review Intelligence
+     Review System
 ========================================
 Fetch, monitor, and analyze Hermina location reviews.
 ========================================
@@ -1234,7 +1234,7 @@ def main():
         elif choice == "8":
             settings_menu()
         elif choice == "0":
-            print("Exiting Hermina Review Intelligence. Goodbye.")
+            print("Exiting Review System. Goodbye.")
             break
         else:
             print("Invalid menu selection. Please try again.")

@@ -132,6 +132,8 @@ class Review(Base):
         Index("idx_reviews_rating", "rating"),
         Index("idx_reviews_review_hash", "review_hash"),
         Index("idx_reviews_source_place", "source", "external_place_id"),
+        # Serves the integration keyset scan: tenant, then the exact ORDER BY.
+        Index("idx_reviews_company_sync_id", "company_id", "sync_updated_at", "id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -171,6 +173,15 @@ class Review(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+    # Watermark OneBox pages on. Distinct from updated_at because analysis is
+    # append-only: a review analysed weeks after it was scraped never touches
+    # updated_at, but must still be resent. AnalysisService moves this in the
+    # same transaction that writes the analysis. No onupdate= here on purpose —
+    # every writer sets it explicitly, so a silent bump can't desync a consumer
+    # mid-page.
+    sync_updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     location: Mapped[Location] = relationship(back_populates="reviews")

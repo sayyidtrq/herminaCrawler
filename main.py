@@ -27,7 +27,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nExiting Hermina Review Intelligence. Goodbye.")
+        print("\nExiting Review System. Goodbye.")
     except Exception as exc:  # top-level safety net
         logging.getLogger(__name__).exception("Unexpected application error")
         print("An unexpected error occurred.")

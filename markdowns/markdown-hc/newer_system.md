@@ -1,4 +1,4 @@
-# Newer System - Hermina Review Intelligence (V2)
+# Newer System - Review System (V2)
 
 Tanggal update: 2026-07-02
 

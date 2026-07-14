@@ -37,7 +37,7 @@ Smoke test:
 
 ```sh
 curl http://localhost:8000/api/health
-# {"status":"ok","app":"Hermina Review Intelligence","env":"local","database":{"ok":true,"message":"OK"}}
+# {"status":"ok","app":"Review System","env":"local","database":{"ok":true,"message":"OK"}}
 ```
 
 API docs: http://localhost:8000/api/docs

@@ -398,7 +398,7 @@ Aturan main:
 
 ---
 
-## Bagian 6 — Analisa Integrasi: Hermina Review Intelligence × Onebox
+## Bagian 6 — Analisa Integrasi: Review System × Onebox
 
 ### 6.1 🔥 Temuan paling penting: OVERLAP BESAR
 

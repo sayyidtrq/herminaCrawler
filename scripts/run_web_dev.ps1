@@ -11,7 +11,7 @@ if (-not (Test-Path (Join-Path $FrontendDir "package.json"))) {
     throw "Next.js frontend tidak ditemukan di hermina-crawler-fe"
 }
 
-Write-Host "Starting Hermina Review Intelligence..." -ForegroundColor Green
+Write-Host "Starting Review System..." -ForegroundColor Green
 Write-Host "Backend : http://localhost:8000/api/docs" -ForegroundColor Cyan
 Write-Host "Frontend: http://localhost:3000" -ForegroundColor Cyan
 Write-Host "Tekan Ctrl+C untuk stop FE dan BE." -ForegroundColor Yellow

@@ -18,7 +18,7 @@ if [ ! -f "$FRONTEND_DIR/package.json" ]; then
 fi
 
 echo ""
-echo "🚀 Starting Hermina Review Intelligence..."
+echo "🚀 Starting Review System..."
 echo "   Backend : http://localhost:8000/api/docs"
 echo "   Frontend: http://localhost:3000"
 echo "   Tekan Ctrl+C untuk stop FE dan BE."

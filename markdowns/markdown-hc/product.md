@@ -1,8 +1,8 @@
-# Hermina Review Intelligence - Product Plan
+# Review System - Product Plan
 
 ## 1. Product Objective
 
-Hermina Review Intelligence adalah platform review intelligence untuk rumah sakit. Tujuannya membantu tim pusat, cabang, patient experience, marketing, dan manajemen operasional untuk:
+Review System adalah platform review intelligence untuk rumah sakit. Tujuannya membantu tim pusat, cabang, patient experience, marketing, dan manajemen operasional untuk:
 
 1. mengambil data review secara on-demand / real-time sesuai request dan filter,
 2. menyimpan dan membersihkan data review dari berbagai cabang,

@@ -1,10 +1,10 @@
 # 04_SELENIUM_SCRAPING.md
 
-# Hermina Review Intelligence — Selenium Review Scraping Specification
+# Review System — Selenium Review Scraping Specification
 
 ## 1. Objective
 
-This document defines a Selenium-based review scraping module for **Hermina Review Intelligence**.
+This document defines a Selenium-based review scraping module for **Review System**.
 
 The goal is to collect public Google Maps review data from selected Hermina hospital review pages and store the results into a local PostgreSQL database.
 

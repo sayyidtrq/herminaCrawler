@@ -1,4 +1,4 @@
-# Hermina Review Intelligence - Implementation Plan
+# Review System - Implementation Plan
 
 Dokumen ini adalah lanjutan teknis dari `product.md`. Fokusnya bukan lagi ide product, tapi langkah implementasi supaya terminal MVP yang sudah jalan bisa berevolusi menjadi web product yang scalable.
 
@@ -241,7 +241,7 @@ Response:
 ```json
 {
   "status": "ok",
-  "app": "Hermina Review Intelligence",
+  "app": "Review System",
   "env": "local"
 }
 ```
@@ -849,7 +849,7 @@ Keep current Python/backend env here:
 
 ```text
 APP_ENV=local
-APP_NAME=Hermina Review Intelligence
+APP_NAME=Review System
 DATABASE_URL=postgresql://...
 REVIEW_SOURCE_MODE=selenium
 GEMINI_MODE=real

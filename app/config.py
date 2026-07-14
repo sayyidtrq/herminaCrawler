@@ -126,7 +126,7 @@ def get_settings() -> Settings:
 
     return Settings(
         app_env=app_env,
-        app_name=os.getenv("APP_NAME", "Hermina Review Intelligence").strip(),
+        app_name=os.getenv("APP_NAME", "Review System").strip(),
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
         export_dir=export_dir,
         database_url=database_url,

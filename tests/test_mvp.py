@@ -32,7 +32,7 @@ def session_factory():
 def settings(tmp_path):
     return Settings(
         app_env="test",
-        app_name="Hermina Review Intelligence",
+        app_name="Review System",
         log_level="INFO",
         export_dir=tmp_path / "exports",
         database_url="sqlite+pysqlite:///:memory:",

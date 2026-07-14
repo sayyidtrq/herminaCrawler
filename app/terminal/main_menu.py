@@ -16,12 +16,12 @@ def run_main_menu() -> None:
     print("=" * 40)
     print(f"     {settings.app_name}")
     print("=" * 40)
-    print("Fetch, monitor, and analyze Hermina location reviews.")
+    print("Fetch, monitor, and analyze location reviews.")
     print("=" * 40)
 
     while True:
         print("\nMain Menu\n")
-        print("1. Manage Hermina Locations")
+        print("1. Manage Locations")
         print("2. Fetch / Sync Reviews")
         print("3. View Review Data")
         print("4. Analyze Reviews with Gemini")
@@ -48,7 +48,7 @@ def run_main_menu() -> None:
         elif choice == "8":
             run_settings_menu()
         elif choice == "0":
-            print("Exiting Hermina Review Intelligence. Goodbye.")
+            print("Exiting Review System. Goodbye.")
             return
         else:
             print("Invalid menu selection. Please try again.")

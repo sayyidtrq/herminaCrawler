@@ -1,2 +1,2 @@
-"""FastAPI entrypoint package for Hermina Review Intelligence."""
+"""FastAPI entrypoint package for Review System."""
 

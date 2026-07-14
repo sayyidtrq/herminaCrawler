@@ -1,4 +1,4 @@
-# Hermina Review Intelligence
+# Review System
 
 Local, interactive terminal application for managing Hermina locations,
 fetching public review data, preventing duplicate records, analyzing reviews,

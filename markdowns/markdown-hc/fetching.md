@@ -1,6 +1,6 @@
 # 03_FETCHING.md
 
-# Hermina Review Intelligence — Fetching & Sync Specification
+# Review System — Fetching & Sync Specification
 
 ## 1. Objective
 

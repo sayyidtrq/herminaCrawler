@@ -2,7 +2,7 @@
 
 Tanggal draft: 2026-07-02
 
-Dokumen ini menerjemahkan kebutuhan stakeholder dan fitur tambahan menjadi rancangan sistem V2. V2 diposisikan sebagai pengembangan dari Hermina Review Intelligence menuju produk Voice of Customer yang dapat dipakai oleh company, government, dan organisasi multi-lokasi.
+Dokumen ini menerjemahkan kebutuhan stakeholder dan fitur tambahan menjadi rancangan sistem V2. V2 diposisikan sebagai pengembangan dari Review System menuju produk Voice of Customer yang dapat dipakai oleh company, government, dan organisasi multi-lokasi.
 
 ## 1. Visi Produk
 

@@ -1,4 +1,4 @@
-# Existing System - Hermina Review Intelligence
+# Existing System - Review System
 
 Tanggal audit: 2026-07-02
 
@@ -6,7 +6,7 @@ Dokumen ini merangkum kondisi sistem berdasarkan codebase saat ini. Fokusnya ada
 
 ## 1. Ringkasan Sistem
 
-Hermina Review Intelligence saat ini adalah sistem review intelligence berbasis Python yang sudah memiliki:
+Review System saat ini adalah sistem review intelligence berbasis Python yang sudah memiliki:
 
 - core service layer untuk lokasi, review, fetch, deduplication, analysis, summary, export, dan fetch log,
 - FastAPI sebagai HTTP API untuk frontend,

@@ -1,10 +1,10 @@
 # 02_INFRA.md
 
-# Hermina Review Intelligence — Infrastructure & Project Setup Specification
+# Review System — Infrastructure & Project Setup Specification
 
 ## 1. Objective
 
-This document defines the infrastructure, project structure, database setup, environment configuration, dependencies, and local development setup for **Hermina Review Intelligence**.
+This document defines the infrastructure, project structure, database setup, environment configuration, dependencies, and local development setup for **Review System**.
 
 The application is a local terminal-based Python program that runs with:
 

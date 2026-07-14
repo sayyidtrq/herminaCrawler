@@ -1,4 +1,4 @@
-# API Design — Hermina Review Intelligence
+# API Design — Review System
 
 > Dokumen desain API terpusat untuk backend crawler Hermina. Menggabungkan & merapikan
 > dokumentasi API yang sebelumnya tersebar di `existing-system.md §6`, `implementation-plan.md §4`,
@@ -109,7 +109,7 @@ Referensi: [routers/health.py](../apps/api/app_api/routers/health.py)
 
 `200`:
 ```json
-{ "status": "ok", "app": "Hermina Review Intelligence", "env": "local" }
+{ "status": "ok", "app": "Review System", "env": "local" }
 ```
 
 ### 4.2 Auth

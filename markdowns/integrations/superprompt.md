@@ -1,7 +1,7 @@
 # Claude Code Superprompt - OneBox Integration Context
 
 Tanggal: 2026-07-09  
-Project asal: Hermina Review Intelligence / crawler backend  
+Project asal: Review System / crawler backend  
 Target kerja Claude Code: mempelajari struktur product OneBox dan menyiapkan rencana integrasi pull data dari service crawler.
 
 ---
@@ -21,9 +21,9 @@ Jangan berasumsi struktur OneBox sudah diketahui. Treat repo OneBox sebagai code
 
 ---
 
-## 2. Konteks Product Hermina Review Intelligence
+## 2. Konteks Product Review System
 
-Hermina Review Intelligence adalah service crawler + analysis untuk review publik rumah sakit.
+Review System adalah service crawler + analysis untuk review publik rumah sakit.
 
 Fungsi utama:
 
@@ -82,7 +82,7 @@ OneBox UI / OneBox backend
         |
         | HTTP request / pull data
         v
-Hermina Review Intelligence API
+Review System API
         |
         | query database crawler + analysis result
         v
@@ -519,7 +519,7 @@ Kalau butuh versi pendek, paste ini:
 ```txt
 You are working inside the OneBox repository. Your first task is discovery, not implementation.
 
-Context: we need to integrate Hermina Review Intelligence, an external FastAPI crawler/analysis microservice. OneBox should pull review and dashboard data from that service through REST API. The crawler backend already exposes /api/docs, /api/openapi.json, JWT Bearer auth, GET /api/reviews, and dashboard endpoints. The final OneBox-side auth/access model and pull params are not yet finalized.
+Context: we need to integrate Review System, an external FastAPI crawler/analysis microservice. OneBox should pull review and dashboard data from that service through REST API. The crawler backend already exposes /api/docs, /api/openapi.json, JWT Bearer auth, GET /api/reviews, and dashboard endpoints. The final OneBox-side auth/access model and pull params are not yet finalized.
 
 Please inspect the OneBox codebase structure carefully. Identify framework, routes/controllers, services, config/env, auth/session/company context, HTTP client patterns, job/queue/scheduler patterns, and UI/menu/dashboard extension points.
 

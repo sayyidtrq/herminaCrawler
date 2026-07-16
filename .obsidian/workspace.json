@@ -185,6 +185,7 @@
   },
   "active": "d70f97d92821c77e",
   "lastOpenFiles": [
+    "markdowns/integrations/VOC_UI_ONEBOX.md",
     "markdowns/integrations/implementation-plan-onebox/RI-07_analysis-fields.md",
     "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
     "markdowns/integrations/implementation-plan/field-mapping-final.md",
@@ -219,7 +220,6 @@
     "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-07_deployment-runbook.md",
     "markdowns/integrations/implementation_plan_crawler_prompt.md",
     "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-06_contract-test-onebox-simulation.md",
-    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-05_reliability-observability.md",
-    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-04_tenant-dedup-integrity.md"
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-05_reliability-observability.md"
   ]
 }

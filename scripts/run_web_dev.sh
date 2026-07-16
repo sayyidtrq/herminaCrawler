@@ -37,7 +37,7 @@ trap cleanup EXIT INT TERM
 # Start backend (activate venv)
 cd "$ROOT"
 source "$ROOT/venv/bin/activate"
-PYTHONUNBUFFERED=1 python3 -m uvicorn apps.api.main:app --reload --port 8000 &
+PYTHONUNBUFFERED=1 python3 -m uvicorn apps.api.main:app --reload --port 8000 &``
 BACKEND_PID=$!
 
 # Start frontend

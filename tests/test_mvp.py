@@ -7,7 +7,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.db.base import Base
-from app.db.models import FetchLog, Review, ReviewAnalysis
+from app.db.models import Company, FetchLog, Review, ReviewAnalysis
+from app.integrations.mock_gemini_client import MockGeminiClient
 from app.services.analysis_service import AnalysisService
 from app.services.export_service import ExportService
 from app.services.fetch_service import FetchService
@@ -31,17 +32,18 @@ def session_factory():
 def settings(tmp_path):
     return Settings(
         app_env="test",
-        app_name="Hermina Review Intelligence",
+        app_name="Review System",
         log_level="INFO",
         export_dir=tmp_path / "exports",
         database_url="sqlite+pysqlite:///:memory:",
+        cors_allowed_origins=("http://localhost:3000",),
         review_source_mode="mock",
         google_maps_api_key=None,
         google_places_language_code="id",
         google_places_region_code="ID",
-        gemini_mode="mock",
-        gemini_api_key=None,
-        gemini_model="mock",
+        local_llm_base_url="http://localhost:11434/v1/",
+        local_llm_api_key="test",
+        local_llm_model="mock",
         fetch_limit_per_location=50,
         fetch_timeout_seconds=1,
         fetch_max_retry=0,
@@ -59,8 +61,25 @@ def settings(tmp_path):
     )
 
 
-def add_location(session_factory):
-    return LocationService(session_factory).add_location(
+@pytest.fixture()
+def company_id(session_factory):
+    with session_factory() as session:
+        company = Company(
+            name="Test Company",
+            ai_enable_flag=True,
+            total_enable_review=100,
+            analyze_competitor_flag=False,
+        )
+        session.add(company)
+        session.commit()
+        session.refresh(company)
+        return company.id
+
+
+def add_location(session_factory, company_id):
+    return LocationService(
+        company_id=company_id, session_factory=session_factory
+    ).add_location(
         hospital_name="Hermina",
         branch_name="Hermina Depok",
         city="Depok",
@@ -87,10 +106,12 @@ def test_hash_is_deterministic():
 
 
 def test_fetch_deduplicates_and_dry_run_does_not_insert(
-    session_factory, settings
+    session_factory, settings, company_id
 ):
-    location = add_location(session_factory)
-    service = FetchService(session_factory, settings)
+    location = add_location(session_factory, company_id)
+    service = FetchService(
+        company_id=company_id, session_factory=session_factory, settings=settings
+    )
 
     first = service.fetch_location(location.id)
     second = service.fetch_location(location.id)
@@ -112,11 +133,18 @@ def test_fetch_deduplicates_and_dry_run_does_not_insert(
 
 
 def test_analysis_is_structured_and_rerun_is_append_only(
-    session_factory, settings
+    session_factory, settings, company_id
 ):
-    location = add_location(session_factory)
-    FetchService(session_factory, settings).fetch_location(location.id)
-    analysis = AnalysisService(session_factory, settings)
+    location = add_location(session_factory, company_id)
+    FetchService(
+        company_id=company_id, session_factory=session_factory, settings=settings
+    ).fetch_location(location.id)
+    analysis = AnalysisService(
+        company_id=company_id,
+        session_factory=session_factory,
+        settings=settings,
+        client=MockGeminiClient(),
+    )
 
     initial = analysis.analyze_pending()
     rerun = analysis.rerun_review(1)
@@ -136,13 +164,24 @@ def test_analysis_is_structured_and_rerun_is_append_only(
         )
 
 
-def test_summary_and_exports(session_factory, settings):
-    location = add_location(session_factory)
-    FetchService(session_factory, settings).fetch_location(location.id)
-    AnalysisService(session_factory, settings).analyze_pending()
+def test_summary_and_exports(session_factory, settings, company_id):
+    location = add_location(session_factory, company_id)
+    FetchService(
+        company_id=company_id, session_factory=session_factory, settings=settings
+    ).fetch_location(location.id)
+    AnalysisService(
+        company_id=company_id,
+        session_factory=session_factory,
+        settings=settings,
+        client=MockGeminiClient(),
+    ).analyze_pending()
 
-    summary = SummaryService(session_factory).overall_summary()
-    export = ExportService(session_factory, settings)
+    summary = SummaryService(
+        company_id=company_id, session_factory=session_factory
+    ).overall_summary()
+    export = ExportService(
+        company_id=company_id, session_factory=session_factory, settings=settings
+    )
     reviews_csv = export.export_all_reviews_csv()
     location_csv = export.export_location_reviews_csv(location.id)
     summary_csv = export.export_analysis_summary_csv()

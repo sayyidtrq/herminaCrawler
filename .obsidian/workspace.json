@@ -1,0 +1,225 @@
+{
+  "main": {
+    "id": "2f4ac19d79dc7f2d",
+    "type": "split",
+    "children": [
+      {
+        "id": "6f0c3a97d7c169fd",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d70f97d92821c77e",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "markdowns/integrations/implementation-plan-onebox/RI-01_field-mapping.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "RI-01_field-mapping"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "8eb42a85dedf99fb",
+    "type": "split",
+    "children": [
+      {
+        "id": "0d0a23b48e75c092",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1d0604dc73d16ec8",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "2afb656b5033c58b",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "9460da697d35584b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "72ba9a4a44820fcb",
+    "type": "split",
+    "children": [
+      {
+        "id": "a64a2a93c7b323dd",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "02623bac966a1ba7",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "markdowns/integrations/REVIEW_INTELLIGENCE_TASKLIST.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for REVIEW_INTELLIGENCE_TASKLIST"
+            }
+          },
+          {
+            "id": "875e274a176a2d9c",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "markdowns/integrations/REVIEW_INTELLIGENCE_TASKLIST.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from REVIEW_INTELLIGENCE_TASKLIST"
+            }
+          },
+          {
+            "id": "ba838b451ba18be4",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "65c5655766e8ff61",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "187d06bcd9c56c37",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "markdowns/integrations/REVIEW_INTELLIGENCE_TASKLIST.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of REVIEW_INTELLIGENCE_TASKLIST"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "d70f97d92821c77e",
+  "lastOpenFiles": [
+    "markdowns/integrations/implementation-plan-onebox/RI-04_client.md.tmp.37660.b98cb18498dc",
+    "apps/api/app_api/__pycache__/integration_schemas.cpython-311.pyc",
+    "apps/api/app_api/routers/__pycache__/integration_reviews.cpython-311.pyc",
+    "app/utils/__pycache__/integration_cursor.cpython-311.pyc",
+    "tests/test_integration_delta_sync.py",
+    "tests/fixtures/voc_reviews_v1.json",
+    "tests/fixtures",
+    "tests/test_integration_api_contract.py",
+    "markdowns/integrations/api-contract-v1.md",
+    "apps/api/app_api/routers/integration_reviews.py",
+    "apps/api/app_api/integration_schemas.py",
+    "app/utils/integration_cursor.py",
+    "markdowns/integrations/implementation-plan-onebox/RI-02_keputusan-arsitektur.md",
+    "markdowns/integrations/implementation-plan-onebox/RI-01_field-mapping.md",
+    "markdowns/integrations/implementation-plan-crawler-system/postman-api-guide-voc.md",
+    "markdowns/integrations/implementation-plan/field-mapping-final.md",
+    "markdowns/integrations/implementation-plan/onebox-api-guide.md",
+    "markdowns/integrations/implementation-plan-onebox/onebox-api-guide.md",
+    "markdowns/integrations/implementation-plan-onebox/DECISION_ui-placement-voc-menu.md",
+    "markdowns/integrations/implementation-plan/DECISION_ui-placement-voc-menu.md",
+    "markdowns/integrations/implementation-plan-onebox/00_INDEX.md",
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-02_delta-sync-pagination.md",
+    "markdowns/integrations/NETWORK_WIREGUARD_CORS_ONEBOX.md",
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-03_service-auth.md",
+    "markdowns/integrations/implementation-plan-onebox/RI-03_kesiapan-api-voc.md",
+    "markdowns/integrations/local-dev-setup-guide.md",
+    "markdowns/crawler_system/erd.md",
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-01_api-contract-fixture.md",
+    "markdowns/crawler_system/dfd.md",
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-07_deployment-runbook.md",
+    "markdowns/integrations/implementation_plan_crawler_prompt.md",
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-06_contract-test-onebox-simulation.md",
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-05_reliability-observability.md",
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-04_tenant-dedup-integrity.md",
+    "markdowns/integrations/implementation-plan-crawler-system/00_INDEX.md",
+    "markdowns/integrations/implementation-plan-crawler-system/b64test.md"
+  ]
+}

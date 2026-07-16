@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings, get_settings
@@ -137,6 +138,19 @@ class AnalysisService:
         self, review_id: int, cleaned: dict, raw_result: dict
     ) -> None:
         with self.session_factory() as session:
+            statement = select(Review).where(Review.id == review_id)
+            if self.company_id is not None:
+                statement = statement.where(Review.company_id == self.company_id)
+            if session.bind.dialect.name == "postgresql":
+                # Serialise against a concurrent analysis of the same review so the
+                # two cannot interleave and leave the watermark behind the newer
+                # analysis row. SQLite has no row locks and no concurrent writers.
+                statement = statement.with_for_update()
+
+            review = session.scalar(statement)
+            if review is None:
+                raise ValueError(f"Review {review_id} not found in this company.")
+
             session.add(
                 ReviewAnalysis(
                     review_id=review_id,
@@ -155,6 +169,23 @@ class AnalysisService:
                     prompt_version=self.settings.prompt_version,
                     raw_response=raw_result,
                 )
+            )
+            # Same transaction as the insert, deliberately. If the analysis
+            # committed and the watermark did not, the review would sit below every
+            # consumer's checkpoint forever and its analysis would never be
+            # delivered — silent permanent data loss rather than a retryable error.
+            #
+            # Postgres: clock_timestamp(), not now(), which is frozen at
+            # transaction start and would hand two analyses in one batch the same
+            # watermark. SQLite (tests only) has no clock_timestamp, and its
+            # CURRENT_TIMESTAMP drops microseconds — since SQLAlchemy stores
+            # DATETIME as text, a second-precision value sorts as a prefix of a
+            # microsecond one and would corrupt the keyset ordering. Use the Python
+            # clock there instead; the single-process test has no skew to worry about.
+            review.sync_updated_at = (
+                func.clock_timestamp()
+                if session.bind.dialect.name == "postgresql"
+                else datetime.now(timezone.utc)
             )
             session.commit()
 

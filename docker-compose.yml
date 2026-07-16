@@ -1,0 +1,24 @@
+services:
+  api:
+    # image: lets the deploy server do `docker compose pull` against the
+    # image CI built and pushed, without needing the Dockerfile/build
+    # context locally. `build:` stays so local dev can still
+    # `docker compose build api` from source when iterating.
+    image: ghcr.io/sayyidtrq/herminacrawler:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hermina-review-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./exports:/app/exports
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

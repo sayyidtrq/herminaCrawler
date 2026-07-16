@@ -37,10 +37,16 @@ class ErrorResponse(_Base):
 # --------------------------------------------------------------------------- #
 # Health
 # --------------------------------------------------------------------------- #
+class DatabaseHealth(_Base):
+    ok: bool
+    message: str | None = None
+
+
 class HealthResponse(_Base):
     status: str = "ok"
     app: str | None = None
     env: str | None = None
+    database: DatabaseHealth | None = None
 
 
 # --------------------------------------------------------------------------- #

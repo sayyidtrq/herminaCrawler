@@ -16,7 +16,7 @@ router = APIRouter(tags=["settings"])
     "/settings",
     summary="Konfigurasi runtime (non-rahasia)",
     description="Mengembalikan konfigurasi publik aplikasi dan status ketersediaan API key (nilai key selalu di-masking).",
-    responses={200: {"content": {"application/json": {"example": {"app_env": "local", "app_name": "Hermina Review Intelligence", "review_source_mode": "selenium", "page_size": 20, "google_maps_api_key": "****", "google_maps_api_key_configured": True}}}}},
+    responses={200: {"content": {"application/json": {"example": {"app_env": "local", "app_name": "Review System", "review_source_mode": "selenium", "page_size": 20, "google_maps_api_key": "****", "google_maps_api_key_configured": True}}}}},
 )
 def get_public_settings(current_user: User = Depends(get_current_user)) -> dict:
     settings = get_settings()

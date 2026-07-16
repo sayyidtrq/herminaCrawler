@@ -1,2 +1,2 @@
-"""Hermina Review Intelligence application package."""
+"""Review System application package."""
 

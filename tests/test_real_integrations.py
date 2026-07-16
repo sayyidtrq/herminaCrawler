@@ -11,7 +11,7 @@ from app.integrations.review_source_client import ReviewSourceError
 def make_settings(tmp_path, **overrides):
     values = {
         "app_env": "test",
-        "app_name": "Hermina Review Intelligence",
+        "app_name": "Review System",
         "log_level": "INFO",
         "export_dir": tmp_path / "exports",
         "database_url": "sqlite+pysqlite:///:memory:",

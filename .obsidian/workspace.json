@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdowns/integrations/implementation-plan-onebox/RI-01_field-mapping.md",
+                "file": "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "RI-01_field-mapping"
+              "title": "RI-06_tenant-mapping"
             }
           }
         ]
@@ -185,6 +185,17 @@
   },
   "active": "d70f97d92821c77e",
   "lastOpenFiles": [
+    "markdowns/integrations/implementation-plan-onebox/RI-07_analysis-fields.md",
+    "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
+    "markdowns/integrations/implementation-plan/field-mapping-final.md",
+    "markdowns/integrations/implementation-plan-onebox/RI-01_field-mapping.md",
+    "markdowns/integrations/implementation-plan-onebox/00_INDEX.md",
+    "markdowns/integrations/implementation-plan-onebox/DECISION_ui-placement-voc-menu.md",
+    "markdowns/integrations/implementation-plan-onebox/onebox-api-guide.md",
+    "markdowns/integrations/implementation-plan-onebox/RI-04_client.md",
+    "markdowns/integrations/implementation-plan-onebox/RI-09_error-observability.md.tmp.39428.47d96a410431",
+    "markdowns/integrations/implementation-plan-onebox/RI-07_analysis-fields.md.tmp.39428.01667b04e6e0",
+    "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md.tmp.39428.65288d19bef9",
     "markdowns/integrations/implementation-plan-onebox/RI-04_client.md.tmp.37660.b98cb18498dc",
     "apps/api/app_api/__pycache__/integration_schemas.cpython-311.pyc",
     "apps/api/app_api/routers/__pycache__/integration_reviews.cpython-311.pyc",
@@ -192,20 +203,11 @@
     "tests/test_integration_delta_sync.py",
     "tests/fixtures/voc_reviews_v1.json",
     "tests/fixtures",
-    "tests/test_integration_api_contract.py",
     "markdowns/integrations/api-contract-v1.md",
-    "apps/api/app_api/routers/integration_reviews.py",
-    "apps/api/app_api/integration_schemas.py",
-    "app/utils/integration_cursor.py",
     "markdowns/integrations/implementation-plan-onebox/RI-02_keputusan-arsitektur.md",
-    "markdowns/integrations/implementation-plan-onebox/RI-01_field-mapping.md",
     "markdowns/integrations/implementation-plan-crawler-system/postman-api-guide-voc.md",
-    "markdowns/integrations/implementation-plan/field-mapping-final.md",
     "markdowns/integrations/implementation-plan/onebox-api-guide.md",
-    "markdowns/integrations/implementation-plan-onebox/onebox-api-guide.md",
-    "markdowns/integrations/implementation-plan-onebox/DECISION_ui-placement-voc-menu.md",
     "markdowns/integrations/implementation-plan/DECISION_ui-placement-voc-menu.md",
-    "markdowns/integrations/implementation-plan-onebox/00_INDEX.md",
     "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-02_delta-sync-pagination.md",
     "markdowns/integrations/NETWORK_WIREGUARD_CORS_ONEBOX.md",
     "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-03_service-auth.md",
@@ -218,8 +220,6 @@
     "markdowns/integrations/implementation_plan_crawler_prompt.md",
     "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-06_contract-test-onebox-simulation.md",
     "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-05_reliability-observability.md",
-    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-04_tenant-dedup-integrity.md",
-    "markdowns/integrations/implementation-plan-crawler-system/00_INDEX.md",
-    "markdowns/integrations/implementation-plan-crawler-system/b64test.md"
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-04_tenant-dedup-integrity.md"
   ]
 }

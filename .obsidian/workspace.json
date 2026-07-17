@@ -185,6 +185,12 @@
   },
   "active": "d70f97d92821c77e",
   "lastOpenFiles": [
+    "markdowns/integrations/VOC_ONEBOX_SETUP_DEV.md",
+    "markdowns/integrations/VOC_ONEBOX_SETUP_DEV.md.tmp.7372.79c8bc987762",
+    "markdowns/integrations/voc-onebox-full-seed.sql",
+    "markdowns/integrations/voc-onebox-menu-seed.sql",
+    "markdowns/integrations/implementation-plan-onebox/FRONTEND_VOC_PLAN.md",
+    "markdowns/fe-profile-progress-report.md",
     "markdowns/integrations/VOC_UI_ONEBOX.md",
     "markdowns/integrations/implementation-plan-onebox/RI-07_analysis-fields.md",
     "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
@@ -201,9 +207,6 @@
     "apps/api/app_api/__pycache__/integration_schemas.cpython-311.pyc",
     "apps/api/app_api/routers/__pycache__/integration_reviews.cpython-311.pyc",
     "app/utils/__pycache__/integration_cursor.cpython-311.pyc",
-    "tests/test_integration_delta_sync.py",
-    "tests/fixtures/voc_reviews_v1.json",
-    "tests/fixtures",
     "markdowns/integrations/api-contract-v1.md",
     "markdowns/integrations/implementation-plan-onebox/RI-02_keputusan-arsitektur.md",
     "markdowns/integrations/implementation-plan-crawler-system/postman-api-guide-voc.md",
@@ -217,9 +220,6 @@
     "markdowns/crawler_system/erd.md",
     "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-01_api-contract-fixture.md",
     "markdowns/crawler_system/dfd.md",
-    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-07_deployment-runbook.md",
-    "markdowns/integrations/implementation_plan_crawler_prompt.md",
-    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-06_contract-test-onebox-simulation.md",
-    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-05_reliability-observability.md"
+    "markdowns/integrations/implementation-plan-crawler-system/VOC-CS-07_deployment-runbook.md"
   ]
 }

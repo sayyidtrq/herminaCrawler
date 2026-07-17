@@ -1,6 +1,7 @@
 # RI-06 — Mapping Site ↔ Lokasi (≤3 MD)
 
 > Keputusan terkait: D2, D6. Sebagian besar sudah "terserap" ke RI-04/05 — task ini merapikan & memvalidasi.
+> **Status: SELESAI 2026-07-15** — lihat §7. Bentuk implementasi menyesuaikan D9 (config di `Connection`, bukan `development.php`).
 
 ## 1. Tujuan & Definition of Done
 Review dari lokasi VoC tertentu mendarat di `SiteId` + `LocationId` OneBox yang benar.
@@ -42,8 +43,21 @@ SELECT COUNT(*) FROM Ticket WHERE SiteId <> <pilot> AND Id IN (SELECT ObjectId F
 ## 6. Risiko & Rollback
 Unmapped location masuk tanpa lokasi → dashboard per-lokasi bolong; mitigasi: log warning + laporan jumlah unmapped di akhir sync. Rollback: revert config.
 
-## 7–8. Temuan / API Gap
-Kalau butuh daftar lokasi programatik: minta Codex expose `GET /api/locations` (gap kecil).
+## 7. Temuan & Deviasi (eksekusi 2026-07-15)
+
+1. **SELESAI** — bentuk implementasi ikut D9/K4, bukan config `development.php`:
+   - **Topologi K4:** 1 `Connection` per lokasi VoC — `Connection.TargetId` = `location_id` VoC. `receive()` kirim param `location_id` ke API + guard sisi client (skip row di luar target; berlaku juga di mock mode yang tidak kenal param).
+   - **Mapping lokasi (D6):** `Options.location_map` = `{"<voc_location_id>": <OneBox LocationId>}` — di-backfill ke `Ticket.LocationId` oleh `applyAnalysis()` (berlaku juga untuk review belum analyzed; hanya isi kalau `LocationId` masih kosong). Unmapped → warning + `LocationId` tetap null (fallback K6).
+2. **Master `Location` OneBox GLOBAL — tidak punya `SiteId`** (kolom: Id, Description, City, koordinat). Mediamonitoring join `Location l ON l.Id = t.LocationId`. Konsekuensi multi-tenant: row Location bisa kebaca lintas site — bukan blocker MVP, tapi catat untuk review keamanan nanti.
+3. **Seed dev:** Location `1703` = Hermina Depok, `1704` = HGA Depok. Connection `1039` → TargetId=4, map `{"4":1703}`; Connection `1040` (baru) → TargetId=2, map `{"2":1704}`.
+4. **Hasil verifikasi (fixture 2 lokasi, 5+5 review):**
+   - Conn 1039 → 10 ticket semua LocationId 1703; Conn 1040 → 5 ticket semua LocationId 1704 ✓ (DoD: lokasi beda → LocationId beda)
+   - `SELECT COUNT(*) ... SiteId <> 169` → **0** (tidak ada leak lintas site) ✓
+   - Filter TargetId: masing-masing connection skip 5 review lokasi lain ✓; dedup lintas-run tetap jalan ✓
+5. Catatan verifikasi: query §5 pakai `m.ObjectName='Review'` — tidak berlaku (pipeline set `ObjectName='Ticket'`); filter yang benar: `m.ConnectionId IN (...)`.
+
+## 8. API Gap
+Kalau butuh daftar lokasi programatik: minta Codex expose `GET /api/locations` (gap kecil — endpoint `/api/locations` sebenarnya sudah ada di VoC, tinggal konfirmasi shape + auth service user).
 
 ## 9. Estimasi (3 MD)
 Hari 1: struktur config + resolver. Hari 2: validasi master LocationId OneBox. Hari 3: test 2 lokasi + laporan unmapped.

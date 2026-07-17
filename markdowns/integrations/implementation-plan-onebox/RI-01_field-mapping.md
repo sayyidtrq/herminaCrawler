@@ -1,6 +1,6 @@
 # RI-01 — Field Mapping: Review VoC → Ticket/Message OneBox (≤3 MD)
 
-> Status dokumen: implementation plan siap eksekusi · dibuat 2026-07-13
+> Status dokumen: **SELESAI 2026-07-14** — deliverable final di [`../implementation-plan/field-mapping-final.md`](../implementation-plan/field-mapping-final.md) (tabel di bawah adalah draft historis; kalau beda, dokumen final yang menang)
 > Penanda: `[verified]` = sudah dicek ke file asli · `[assumption]` = perlu dicek · `[blocked]` = butuh keputusan lead/Codex
 
 ---
@@ -23,12 +23,12 @@ Menghasilkan **tabel mapping final** setiap field response `/api/reviews` VoC Sy
 
 ## 3. File Target
 
-| File | Status |
-|---|---|
-| `markdowns/integrations/implementation-plan/field-mapping-final.md` | [baru] — deliverable utama |
-| `\\wsl.localhost\...\onecloud\app\models\{Ticket,Message,MessageContent,MessageUser,Contact}.php` | [baca-saja] |
-| `\\wsl.localhost\...\onecloud\app\tasks\SonarTask.php` | [baca-saja] — pattern rujukan |
-| `C:\...\hermina_crawler\app\db\models.py` + `apps\api\app_api\routers\reviews.py` | [baca-saja] |
+| File                                                                                              | Status                        |
+| ------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `markdowns/integrations/implementation-plan/field-mapping-final.md`                               | [baru] — deliverable utama    |
+| `\\wsl.localhost\...\onecloud\app\models\{Ticket,Message,MessageContent,MessageUser,Contact}.php` | [baca-saja]                   |
+| `\\wsl.localhost\...\onecloud\app\tasks\SonarTask.php`                                            | [baca-saja] — pattern rujukan |
+| `C:\...\hermina_crawler\app\db\models.py` + `apps\api\app_api\routers\reviews.py`                 | [baca-saja]                   |
 
 ## 4. Langkah Implementasi
 
@@ -77,7 +77,7 @@ Konstanta yang SonarTask pakai (news) — VoC kemungkinan butuh nilai sendiri:
 | `sentiment` (`positive/neutral/negative/mixed`) | `Ticket.Sentiment` | transform: positive→`1`, neutral→`0`, negative→`-1` — terverifikasi dari query Mediamonitoring (`CASE t.Sentiment WHEN -1/0/1`). **`mixed` tidak punya padanan** → usul: map ke `0` + simpan asli di Meta | [verified] skala; [blocked] `mixed` |
 | `sentiment_score` | `MessageContent.Meta` | tidak ada kolom padanan | [assumption] |
 | `issue_category` | `Ticket.CategoryId` | butuh master Category per site di OneBox (atau mapping kategori); alternatif: tag | [blocked] lead |
-| `urgency` (`low/medium/high`) | `Ticket.PriorityId` (`TP*`) | SonarTask hardcode `'TP2'`; perlu daftar kode TP* asli dari Reference (Langkah 3) → usul high→TP1, medium→TP2, low→TP3 | [assumption] kode |
+| `urgency` (`low/medium/high`) | `Ticket.PriorityId` (`TP*`) | **verified dari Reference: TP1=Low, TP2=Medium, TP3=High** → mapping: low→TP1, medium→TP2, high→TP3 (usul awal kebalik — sudah dikoreksi) | [verified] 2026-07-14 |
 | `summary` | `Ticket.Description` | kolom ada, SonarTask set null — aman diisi | [verified] kolom ada |
 | `recommended_action` | `Ticket.Solution` | kolom ada; secara semantik pas | [verified] kolom ada |
 | `keywords` (JSON) | tag (pola `tagList` SonarTask) | perlu cek mekanisme tag Mediamonitoring dulu | [assumption] |
@@ -86,13 +86,13 @@ Konstanta yang SonarTask pakai (news) — VoC kemungkinan butuh nilai sendiri:
 
 #### 2c. Konstanta yang harus diputuskan untuk `VoiceOfCustomerSystemTask`
 
-| Konstanta | Nilai SonarTask (news) | Untuk VoC Review | Status |
+| Konstanta | Nilai SonarTask (news) | Untuk VoC Review (verified 2026-07-14) | Status |
 |---|---|---|---|
-| `Ticket.TypeId` | `'TT3'` | TT baru khusus review? atau reuse | [blocked] cek Reference + lead |
-| `Ticket.StatusId` | `'TS2'` | kemungkinan sama (open) | [assumption] |
-| `Ticket.MediaId` / `Message.MediaId` | per channel Sonar | **MediaId baru "Google Review"?** | [blocked] lead |
-| `Message.TypeId` / `StatusId` | `'MST2'` / `'MSS1'` | kemungkinan sama | [assumption] |
-| `Message.ConnectionId` | `$this->sonar->ConId` | perlu keputusan: Connection khusus VoC per site? | [blocked] lead |
+| `Ticket.TypeId` | `'TT3'` | **auto dari `addTicket()`**: TT1 (atau TT3 kalau Setting messaging='Media'); existing Gbusiness pakai TT1 | [verified] Ticketing.php:325–329 |
+| `Ticket.StatusId` | `'TS2'` | **auto**: TS2 (New) | [verified] Ticketing.php:332 |
+| `Ticket.MediaId` / `Message.MediaId` | per channel Sonar | **reuse `GBUSINESS`** ("Google Business") — sudah ada di Reference + UI existing; TIDAK perlu MediaId baru | [verified] DB dev |
+| `Message.TypeId` / `StatusId` | `'MST2'` / `'MSS1'` | sama: MST2 (Inbound) / MSS1 (New); + `PriorityId='MSP1'`, `MethodId='COMMENT'` | [verified] GbusinessProvider::map |
+| `Message.ConnectionId` | `$this->sonar->ConId` | Connection per site dgn `ProviderId=PVDxx baru` (Code=`VoiceOfCustomerSystem`), `MediaId='GBUSINESS'` — pola Connection 805 (Gbusiness/PVD49) | [verified] pola; topologi per-lokasi vs per-company = K4 |
 
 ### Langkah 3 — Verifikasi kode Reference & Media di DB dev (±0.5 hari)
 
@@ -138,11 +138,20 @@ Task ini dokumen-only. Verifikasi = checklist:
 3. `MessageContent.Id = Message.Id` (share PK, bukan auto-increment sendiri) `[verified dari SonarTask line 603]` — penting untuk RI-05.
 4. SonarTask **tidak** mengisi `Ticket.Content/Description/Solution` — kolom-kolom itu kosong dan aman dipakai VoC untuk summary/recommended_action.
 
+**Tambahan hasil verifikasi 2026-07-14 (WSL onecloud + DB dev):**
+
+5. **OneBox sudah punya pipeline review Google Business** — `GbusinessProvider` (`app/services/Provider/GbusinessProvider.php`), MediaId `GBUSINESS`, Connection contoh Id 805 (PVD49), 571 message di dev, plus UI existing `dashboard/ReviewsController` & `AllReviewsController`. **Pola ingest yang benar untuk review = Provider pattern + `messaging->ensureMessage()`, bukan pola SonarTask** — RI-04/RI-05 perlu menyesuaikan.
+6. **Dedup ensureMessage = 3 kolom:** `SiteId + MediaId + RemoteId` (Messaging.php:842) — bukan RemoteId saja.
+7. **Rating punya rumah:** `MessageContent.Meta.star` → `addTicket()` otomatis set `Ticket.Sentiment = star (1–5)` (Ticketing.php:334–341). Konsekuensi: untuk tiket review, `Ticket.Sentiment` = rating bintang; AI sentiment (-1/0/1 hanya konvensi news) disimpan di Meta → merevisi D8.
+8. **Kode prioritas verified: TP1=Low, TP2=Medium, TP3=High** — usul awal (high→TP1) kebalik, sudah dikoreksi di tabel 2b dan dokumen final.
+9. **Ticket dibuat async** oleh job `process` (ProcessingService→addTicket) → field analisa (`Description/Solution/CategoryId/PriorityId`) di-apply lewat **pass kedua** (cari Message by RemoteId → update Ticket via ObjectId) — detail di dokumen final §4.
+
 ## 8. API Gap / Handoff ke Codex
 
-1. `GET /api/reviews` belum punya `updated_since` — tambah query param filter `Review.updated_at >= ?` (kolomnya sudah ada, tinggal expose). Prioritas: sebelum RI-08.
-2. Konfirmasi: apakah response `/api/reviews` menyertakan `review_hash`? (ada di DB; pastikan ikut di schema response.)
+1. `GET /api/reviews` belum punya `updated_since` — tambah query param filter `Review.updated_at >= ?` (kolomnya sudah ada, tinggal expose). Prioritas: sebelum RI-08. **[dikonfirmasi 2026-07-14: param list hanya page/page_size/location_id/rating/sentiment/keyword/latest_first/include_raw/date_preset/date_from/date_to]**
+2. ~~Konfirmasi `review_hash` di response~~ — **✅ CLOSED: ada di `apps/api/app_api/schemas.py:109` (ReviewResponse.review_hash)**.
 3. Catatan unique global `review_hash` (Risiko #2 di atas).
+4. **GAP BARU:** `updated_at` tidak di-expose di `ReviewResponse` (hanya `created_at`) — wajib ditambah sebagai cursor delta sync. Prioritas: sebelum RI-08, bareng #1.
 
 ## 9. Estimasi Breakdown (3 MD)
 

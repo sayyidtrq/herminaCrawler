@@ -12,6 +12,9 @@ on:
       - "Dockerfile"
       - "entrypoint.sh"
       - "docker-compose.yml"
+      - "scripts/**"
+      - "tests/**"
+      - ".dockerignore"
       - ".github/workflows/deploy.yml"
   workflow_dispatch: {}
 
@@ -35,6 +38,8 @@ jobs:
         run: pip install -r apps/api/requirements.txt
 
       - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: pytest tests/ -q --ignore=tests/test_real_integrations.py
 
   build-and-push:

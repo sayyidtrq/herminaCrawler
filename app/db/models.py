@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -47,6 +48,7 @@ class Company(Base):
     users: Mapped[list["User"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     locations: Mapped[list["Location"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     competitors: Mapped[list["Competitor"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    api_clients: Mapped[list["ApiClient"]] = relationship(back_populates="company", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -74,6 +76,37 @@ class User(Base):
 
     company: Mapped[Company] = relationship(back_populates="users")
 
+
+class ApiClient(Base):
+    """Opaque service credential bound to exactly one company tenant."""
+
+    __tablename__ = "api_clients"
+    __table_args__ = (
+        Index("idx_api_clients_company_active", "company_id", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    key_id: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    secret_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    scopes: Mapped[list[str]] = mapped_column(
+        JsonType,
+        default=lambda: ["reviews:read"],
+        server_default=text("""'["reviews:read"]'"""),
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    company: Mapped[Company] = relationship(back_populates="api_clients")
 
 class Location(Base):
     __tablename__ = "locations"

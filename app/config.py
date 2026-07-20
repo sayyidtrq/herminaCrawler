@@ -14,6 +14,8 @@ load_dotenv(BASE_DIR / ".env")
 # Only ever reachable when APP_ENV=local; get_settings refuses to start without a
 # real INTEGRATION_CURSOR_SECRET anywhere else.
 LOCAL_CURSOR_SECRET_FALLBACK = "local-only-cursor-secret-never-deploy-this"
+LOCAL_JWT_SECRET_FALLBACK = "local-only-jwt-secret-never-deploy-this"
+LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK = "local-only-service-token-pepper-never-deploy-this"
 
 
 def _as_int(name: str, default: int) -> int:
@@ -72,6 +74,8 @@ class Settings:
     # Default is for tests that build Settings directly; get_settings() still
     # refuses to boot outside local without a real INTEGRATION_CURSOR_SECRET.
     integration_cursor_secret: str = LOCAL_CURSOR_SECRET_FALLBACK
+    jwt_secret_key: str = LOCAL_JWT_SECRET_FALLBACK
+    service_token_pepper: str = LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK
 
     def ensure_export_dir(self) -> Path:
         self.export_dir.mkdir(parents=True, exist_ok=True)
@@ -98,6 +102,25 @@ def get_settings() -> Settings:
         raise ValueError("DATABASE_URL is required in .env.")
 
     app_env = os.getenv("APP_ENV", "local").strip()
+    jwt_secret_key = os.getenv("JWT_SECRET_KEY", "").strip()
+    service_token_pepper = os.getenv("SERVICE_TOKEN_PEPPER", "").strip()
+    if app_env.lower() not in {"local", "test"}:
+        missing = [
+            name
+            for name, value in (
+                ("JWT_SECRET_KEY", jwt_secret_key),
+                ("SERVICE_TOKEN_PEPPER", service_token_pepper),
+            )
+            if not value or value.startswith("change-me")
+        ]
+        if missing:
+            raise ValueError(
+                ", ".join(missing)
+                + " must be set to a unique secret outside local/test."
+            )
+    jwt_secret_key = jwt_secret_key or LOCAL_JWT_SECRET_FALLBACK
+    service_token_pepper = service_token_pepper or LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK
+
     integration_cursor_secret = os.getenv("INTEGRATION_CURSOR_SECRET", "").strip()
     if not integration_cursor_secret:
         # This secret signs the pagination cursors. A shared or guessable value
@@ -172,4 +195,6 @@ def get_settings() -> Settings:
         page_size=_as_int("PAGE_SIZE", 20),
         show_raw_payload=_as_bool("SHOW_RAW_PAYLOAD", False),
         integration_cursor_secret=integration_cursor_secret,
+        jwt_secret_key=jwt_secret_key,
+        service_token_pepper=service_token_pepper,
     )

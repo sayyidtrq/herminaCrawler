@@ -7,18 +7,20 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.db.session import get_session_factory
+from app.db.models import Company
+from sqlalchemy import select
 from app.services.integration_review_service import (
     IntegrationRequestError,
     IntegrationReviewService,
 )
 from app.utils.integration_cursor import CURSOR_VERSION, fingerprint
+from apps.api.app_api.service_auth import ServicePrincipal, require_service_principal
 from apps.api.app_api.integration_schemas import (
     API_VERSION,
     DEFAULT_LIMIT,
@@ -26,6 +28,7 @@ from apps.api.app_api.integration_schemas import (
     MIN_LIMIT,
     IntegrationErrorResponse,
     IntegrationReviewListResponse,
+    ServiceIdentityResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,35 +36,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/integration/v1", tags=["integration"])
 
 REQUIRED_SCOPE = "reviews:read"
-
-
-@dataclass(frozen=True)
-class ServicePrincipal:
-    """Shape is fixed by VOC-CS-03; only the way it is obtained changes."""
-
-    client_id: int
-    key_id: str
-    company_id: int
-    scopes: frozenset[str]
-
-
-def require_service_principal() -> ServicePrincipal:
-    """PLACEHOLDER — real service-token verification lands in VOC-CS-03.
-
-    It refuses every request rather than returning a permissive stub: an endpoint
-    that reads another tenant's reviews must never be reachable unauthenticated,
-    not even for the window between these two tasks. Tests supply a principal via
-    ``app.dependency_overrides[require_service_principal]``.
-
-    VOC-CS-03 replaces the body with the HTTPBearer dependency from
-    ``apps/api/app_api/service_auth.py`` and enforces REQUIRED_SCOPE; the
-    signature stays the same so no caller here has to change.
-    """
-    raise IntegrationRequestError(
-        503,
-        "SERVICE_AUTH_NOT_READY",
-        "Service token authentication is not configured yet (VOC-CS-03).",
-    )
 
 
 def get_integration_session_factory():
@@ -93,6 +67,26 @@ def _parse_updated_since(raw: str | None) -> datetime | None:
 
 
 @router.get(
+    "/whoami",
+    response_model=ServiceIdentityResponse,
+    summary="Validasi identity service token untuk OneBox",
+    responses={401: {"model": IntegrationErrorResponse, "description": "Service token invalid"}},
+)
+def service_whoami(
+    principal: ServicePrincipal = Depends(require_service_principal),
+    session_factory=Depends(get_integration_session_factory),
+) -> dict:
+    with session_factory() as session:
+        company = session.scalar(select(Company).where(Company.id == principal.company_id))
+    if company is None:
+        raise IntegrationRequestError(401, "INVALID_SERVICE_TOKEN", "Invalid service token.")
+    return {
+        "company_id": company.id,
+        "company_name": company.name,
+        "scopes": sorted(principal.scopes),
+    }
+
+@router.get(
     "/reviews",
     response_model=IntegrationReviewListResponse,
     summary="Pull review + analysis untuk OneBox (contract v1)",
@@ -108,7 +102,6 @@ def _parse_updated_since(raw: str | None) -> datetime | None:
         401: {"model": IntegrationErrorResponse, "description": "Service token invalid"},
         403: {"model": IntegrationErrorResponse, "description": "Scope tidak cukup"},
         404: {"model": IntegrationErrorResponse, "description": "Location tidak ditemukan"},
-        503: {"model": IntegrationErrorResponse, "description": "Service auth belum siap"},
     },
 )
 def list_integration_reviews(

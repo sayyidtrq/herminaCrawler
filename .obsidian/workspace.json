@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
+                "file": "markdowns/integrations/PROMPT_VOC_AGENT_SERVICE_TOKEN.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "RI-06_tenant-mapping"
+              "title": "PROMPT_VOC_AGENT_SERVICE_TOKEN"
             }
           }
         ]
@@ -185,23 +185,25 @@
   },
   "active": "d70f97d92821c77e",
   "lastOpenFiles": [
-    "outputs/ppt32DE.tmp",
+    "alembic/versions/__pycache__/20260713_0001_add_review_sync_watermark.cpython-311.pyc",
+    "tests/__pycache__/test_integration_delta_sync.cpython-311-pytest-8.3.5.pyc",
+    "markdowns/integrations/VOC_ONEBOX_LIVE_PULL.md.tmp.19960.1422ec1e0195",
+    "markdowns/integrations/VOC_SERVICE_AUTH_RUNBOOK.md",
+    "tests/__pycache__/test_service_auth.cpython-311-pytest-8.3.5.pyc",
+    "tests/test_service_auth.py",
+    "tests/__pycache__/test_integration_api_contract.cpython-311-pytest-8.3.5.pyc",
+    "alembic/versions/__pycache__/20260713_0002_add_api_clients.cpython-311.pyc",
+    "scripts/__pycache__/manage_api_client.cpython-311.pyc",
+    "scripts/__pycache__/__init__.cpython-311.pyc",
+    "apps/api/app_api/__pycache__/service_auth.cpython-311.pyc",
+    "app/services/__pycache__/api_client_service.cpython-311.pyc",
+    "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
     "markdowns/integrations/write-test.md",
     "outputs/write-test.md",
     "markdowns/integrations/VOC_CRAWLER_PULL_FLOW_DEPLOYMENT.md",
-    "outputs/~$ice-of-customer-team-backlog.docx",
-    "outputs/doc-render-temp/soffice_convert_gwfl0l8d",
-    "outputs/doc-render-temp/soffice_profile_y8bdb5em",
-    "outputs/doc-render-temp",
-    "outputs/voice-of-customer-team-backlog-render",
-    "outputs/voice-of-customer-team-backlog.docx",
-    "outputs/build_voc_team_backlog_doc.py",
     "markdowns/integrations/VOC_TEAM_PRODUCT_BACKLOG.md",
     "markdowns/integrations/VOC_DBEAVER_SEEDING.md",
-    "markdowns/integrations/VOC_DBEAVER_SEEDING.md.tmp.7372.5055ea01a1a9",
-    "outputs/~$voice-of-customer-system-brief-v2.pptx",
     "outputs/voice-of-customer-system-brief-v2-preview/montage.webp",
-    "outputs/voice-of-customer-system-brief-v2-preview/slide-10.layout.json",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-10.png",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-09.png",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-08.png",
@@ -228,8 +230,6 @@
     "markdowns/fe-profile-progress-report.md",
     "markdowns/integrations/VOC_UI_ONEBOX.md",
     "markdowns/integrations/implementation-plan-onebox/RI-07_analysis-fields.md",
-    "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
-    "markdowns/integrations/implementation-plan/field-mapping-final.md",
-    "markdowns/integrations/implementation-plan-onebox/RI-01_field-mapping.md"
+    "markdowns/integrations/implementation-plan/field-mapping-final.md"
   ]
 }

@@ -1,3 +1,6 @@
+> ⚠️ **SUPERSEDED oleh `../../decisions/ADR-0001-ownership-inversion.md` (2026-07-21).**
+> **JANGAN dipakai sebagai acuan kerja baru.** Plan ini mengasumsikan lokasi dikelola di VoC lalu dipetakan manual ke OneBox. Sekarang terbalik: **lokasi dikelola di OneBox**, dan OneBox auto-provisioning ke VoC lewat `POST /api/locations`. Ganti dengan task CRUD Location + auto-provisioning. Disimpan sebagai histori.
+
 # RI-06 — Mapping Site ↔ Lokasi (≤3 MD)
 
 > Keputusan terkait: D2, D6. Sebagian besar sudah "terserap" ke RI-04/05 — task ini merapikan & memvalidasi.

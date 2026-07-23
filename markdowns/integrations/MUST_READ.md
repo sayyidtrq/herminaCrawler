@@ -2,6 +2,45 @@
 
 Instruksi wajib untuk Claude Code, Codex, dan engineer sebelum lanjut integrasi OneBox.
 
+---
+
+## 🚨 BACA PALING AWAL — Architecture Decision Records (ADR)
+
+ADR adalah **otoritas tertinggi**. Kalau ADR bertentangan dengan dokumen lain, **ADR yang menang**.
+
+| ADR | Isi | Status |
+|---|---|---|
+| `../decisions/ADR-0001-ownership-inversion.md` | **OneBox = System of Record.** Seluruh modul VoC (dashboard, review mgmt, location, competitor, reports, insights, parameter/benefit) dikelola di OneBox. VoC = crawler engine **headless**, hanya scraping. | Accepted · diratifikasi internal 2026-07-22 · **mekanisme provisioning di-amandemen ADR-0003** |
+| `../decisions/ADR-0002-ai-execution-split.md` | AI: **parameter & kuota di OneBox, eksekusi di VoC.** VoC wajib mengembalikan `tokens_used`. | Accepted |
+| `../decisions/ADR-0003-crawl-execution-pull-queue.md` | **Eksekusi crawl.** Provisioning **push sinkron → pull worklist** (VoC menarik daftar target dari OneBox; simpan lokasi jadi instan). VoC pakai **antrean crawl durable + worker** (bukan fetch blocking), crawl **inkremental** (cursor). Scheduler tiga-window RI-08 tetap, trigger jadi **non-blocking**. | Accepted |
+
+### Daftar modul NON-NEGOTIABLE (ditetapkan 2026-07-22)
+
+Semua ini **dikelola di OneBox**, tanpa kecuali:
+setup lokasi · setup competitor · dashboard · review management · location management ·
+competitor management · reports · AI analysis · insights · setup parameter/benefit.
+
+**Scraping tetap milik VoC** — jangan pindahkan Selenium/crawling ke OneBox.
+
+Cakupan **AI analysis** dan **insights** masih akan dikaji ulang; kepemilikannya tidak.
+Status implementasi per modul + konsekuensi teknis: lihat bagian "Ratifikasi internal" di ADR-0001.
+
+⚠️ Ratifikasi ini **internal dev, belum disetujui Pak Agung.**
+
+## ⛔ DOKUMEN YANG SUDAH TIDAK BERLAKU (jangan jadikan acuan kerja baru)
+
+Semua sudah diberi banner di bagian atas file. Disimpan hanya sebagai histori.
+
+1. `../crawler_system/erd.md` — ERD lama: VoC memiliki Location/Competitor/Company/User
+2. `../crawler_system/dfd.md` — DFD lama: VoC punya aktor User/Admin + UI
+3. `architecture_diagram.md` + `voc_onebox_architecture.drawio` — VoC digambar punya FE sendiri
+4. `implementation-plan-onebox/RI-06_tenant-mapping.md` — mapping lokasi arah terbalik
+5. `implementation-plan-onebox/RI-02_keputusan-arsitektur.md` — **sebagian**: D2, D6 batal; D10 direvisi. D1/D3/D4/D5/D7/D8/D9/D11 masih berlaku.
+
+**Aturan menulis dokumen baru:** kalau sebuah keputusan arsitektur berubah, buat ADR baru di `markdowns/decisions/` (format `ADR-####-nama.md`), tandai dokumen lama dengan banner SUPERSEDED **di 5 baris pertama**, lalu daftarkan di sini.
+
+---
+
 ## Canonical Naming
 
 Mulai sekarang gunakan nama **Voice of Customer  System** untuk sistem Voice of Customer  + analysis ini.
@@ -48,6 +87,9 @@ Dokumen lama boleh belum dimigrasi. Untuk pekerjaan baru, file ini yang menang.
 
 - Voice of Customer  System berjalan sebagai 3rd party service.
 - Deployment Voice of Customer  System memakai Docker.
-- OneBox melakukan pull via REST API.
+- **Dua arah pull (lihat [ADR-0003](../decisions/ADR-0003-crawl-execution-pull-queue.md)):**
+  - VoC **pull worklist** dari OneBox (`GET /api/integration/v1/worklist`) untuk tahu target crawl — menggantikan push `POST /api/locations`.
+  - OneBox **pull review delta** dari VoC (`GET /api/integration/v1/reviews`) untuk masuk Ticket.
+- Trigger crawl dari OneBox bersifat **non-blocking** (enqueue), bukan fetch sinkron menunggu Selenium.
 - Auth/access API dari sisi OneBox masih perlu dikonfirmasi.
 - Parameter final dari OneBox masih perlu dikonfirmasi.

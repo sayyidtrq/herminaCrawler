@@ -1,3 +1,6 @@
+> ⚠️ **SUPERSEDED oleh `decisions/ADR-0001-ownership-inversion.md` (2026-07-21).**
+> **JANGAN dipakai sebagai acuan kerja baru.** DFD di bawah menampilkan "User/Admin VoC" sebagai aktor dengan UI, dan proses User/Auth Management + Competitor Monitoring di sisi VoC — itu **sudah tidak berlaku**. VoC kini headless (hanya proses Akuisisi Review); sisanya di OneBox. Disimpan sebagai histori.
+
 # Voice of Customer System — DFD (Draft v1)
 
 > **Status:** draf high-level, belum di-detailing.

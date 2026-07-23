@@ -1,8 +1,12 @@
+> ⚠️ **SEBAGIAN SUPERSEDED oleh `../../decisions/ADR-0001-ownership-inversion.md` + `ADR-0002-ai-execution-split.md` (2026-07-21).**
+> Yang **TIDAK berlaku lagi**: **D2** & **D6** (`Connection.TargetId` = location_id milik VoC; mapping lokasi berbasis config VoC) — sekarang lokasi dikelola di OneBox + auto-provisioning ke VoC. **D10** direvisi: parameter/kuota pakai `Benefit`/`SiteBenefit` (bukan hanya `Connection.Options`).
+> Yang **masih berlaku**: D1, D3, D4, D5, D7, D8, D9, D11. Baca ADR dulu sebelum memakai dokumen ini.
+
 # RI-02 — Keputusan Arsitektur (Decision Log) (≤2 MD)
 
 > Status: **keputusan sementara sudah diambil & direvisi 2026-07-14** berdasarkan verifikasi langsung ke repo OneBox WSL + DB dev (temuan besar: pipeline review Gbusiness sudah ada — lihat RI-01 §7 dan `../implementation-plan/field-mapping-final.md`). Peran task ini: **minta ratifikasi lead** — tiap keputusan tinggal di-ACC atau dioverride Pak Agung. Semua keputusan reversible.
 
-## Daftar Keputusan (D1–D9)
+## Daftar Keputusan (D1–D11)
 
 | # | Keputusan | Pilihan (default) | Alasan | Bukti |
 |---|---|---|---|---|
@@ -15,9 +19,11 @@
 | D7 | `issue_category` | `Ticket.CategoryId` + **seed master Category** per site (kategori dari AI itu set kecil & tetap); saat ingest simpan juga `Meta.issue_category` biar tidak hilang sebelum seed siap | dashboard butuh agregasi per kategori — JSON Meta tidak bisa di-GROUP BY dengan wajar | [assumption] model Category — verifikasi di RI-07; contoh dev: ada Ticket GBUSINESS dgn CategoryId terisi (714) via rules |
 | D8 | Sentiment AI (termasuk `mixed`) | **REVISI: seluruh AI sentiment (string asli 4 nilai + score) ke `Meta.ai_sentiment`/`Meta.ai_sentiment_score`** — TIDAK menyentuh `Ticket.Sentiment`, karena untuk tiket review kolom itu = rating bintang 1–5 (di-set otomatis dari `Meta.star`) | skala -1/0/1 hanya konvensi news/Mediamonitoring; konvensi review existing = star; tidak ada data hilang | [verified] Ticketing.php:334–341 + query Mediamonitoring |
 | D9 | **(BARU)** Pola ingest | **Provider pattern**: class `VoiceOfCustomerSystemProvider extends Provider` + `messaging->ensureMessage()` — BUKAN task manual pola SonarTask | dapat gratis: dedup, pembuatan Ticket+Contact, rules, notifikasi, UI; pola yang sama dipakai review existing (Gbusiness, GooglePlay, Bukalapak) | [verified] GbusinessProvider.php + ProcessingService.php + Ticketing::addTicket |
+| D10 | **(BARU)** Feature flag & entitlement | **Bertingkat, MVP paling murah:** (1) `Connection.Enabled` = master on/off per site; (2) flag granular di **`Connection.Options` JSON**, mirror entitlement VoC: `ai_analysis_enabled`, `competitor_enabled`, `review_quota`/`scrape_limit`; (3) `Menu`+`RoleMenu` = siapa yang lihat. **BELUM** pakai `Benefit`/`SiteBenefit` — baru dipakai kalau fitur ini dijual per-paket | konsisten dgn D2/D6 yang sudah menaruh config di `Connection.Options` → nol tabel baru, nol migration; VoC sudah punya padanannya di sisi sana (`require_ai_enabled`, `require_competitor_enabled`, `review_quota`) sehingga flag dua sisi bisa disamakan namanya | [verified] `app/services/entitlement_service.py` (VoC) + pola `Connection.Options` (GbusinessProvider) + `BenefitService::hasBenefit` |
+| D11 | **(BARU)** Klasifikasi/labeling | **Rule-first, AI-secondary.** Label deterministik (issue category, prioritas, routing/assign) pakai **rule engine `Service\Ruling` yang sudah ada** (`Rule.Conditions`/`Actions` JSON per `SiteId`). AI VoC **hanya** untuk yang rules tak bisa: `summary`, `recommended_action`, nuansa sentiment | hemat token drastis (rules = 0 token, instan, deterministik, bisa diaudit); **gratis kalau D9 di-ACC** — `Ticketing::addTicket` sudah otomatis manggil `ruling->apply()`, jadi tanpa kode tambahan | [verified] `Ruling.php` (evaluateConditions/executeActions), `Ticketing.php:263`, `Rule.php`; bukti nyata: Ticket GBUSINESS dev CategoryId terisi via rules |
 
 ## Langkah Eksekusi
-1. Bawa tabel D1–D9 + K1–K7 (dokumen final §7) ke Pak Agung (chat/meeting singkat) — format "ini default saya, mohon koreksi kalau ada yang keliru". (0.5 MD)
+1. Bawa tabel D1–D11 + K1–K7 (dokumen final §7) ke Pak Agung (chat/meeting singkat) — format "ini default saya, mohon koreksi kalau ada yang keliru". (0.5 MD)
 2. Update dokumen ini dengan hasil (ACC/override per baris) + tanggal. (0.5 MD)
 3. Kalau ada override → propagasi ke plan RI terkait (tiap plan menyebut nomor D yang dipakainya).
 
@@ -26,10 +32,10 @@ _(diisi setelah dibawa ke Pak Agung)_
 
 | # | Hasil | Tanggal | Catatan |
 |---|---|---|---|
-| D1–D9 | pending | — | — |
+| D1–D11 | pending | — | — |
 
 ## Definition of Done
-Semua baris D1–D9 berstatus ACC/override, tercatat di sini, dan plan turunannya sudah disesuaikan.
+Semua baris D1–D11 berstatus ACC/override, tercatat di sini, dan plan turunannya sudah disesuaikan.
 
 ## Risiko
 - Lead override D4/D7 jadi "kolom baru di Ticket" → butuh migration; dampaknya ke RI-05/07/12 (sudah dirancang mudah beralih — lihat bagian Meta di RI-07).

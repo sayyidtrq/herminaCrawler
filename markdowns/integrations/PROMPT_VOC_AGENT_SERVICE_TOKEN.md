@@ -1,4 +1,13 @@
-# Prompt untuk AI agent VoC System — kirim apa adanya
+# Prompt untuk AI agent VoC System — SUDAH DIKIRIM & SELESAI
+
+> **Status: CLOSED (2026-07-21).** VOC-CS-03 sudah diimplementasikan dan crawler
+> sudah di-redeploy. `GET /api/integration/v1/whoami` dan `/reviews` terverifikasi
+> hidup di env staging, termasuk permintaan tambahan whoami di bagian bawah prompt.
+> Arsip — tidak perlu dikirim ulang. Langkah lanjutannya ada di
+> `VOC_ONEBOX_LIVE_PULL.md` §7.
+
+<details>
+<summary>Isi prompt asli</summary>
 
 > Konteks: OneBox sudah siap consume. Yang menahan hanya auth di sisi VoC.
 > Salin blok di bawah ini ke agent yang pegang repo `herminaCrawler`.
@@ -45,12 +54,15 @@ terhadap contract v1 yang sekarang (`data[]`, `page.next_cursor`, `page.checkpoi
 
 ---
 
-## Catatan buat kita sendiri (jangan ikut dikirim)
+</details>
 
-- Setelah VoC selesai + **redeploy**, sisi OneBox cuma perlu ubah `Connection.Options`:
-  ```json
-  { "api_mode": "service", "service_token": "voc_prod_xxx.yyy", "page_size": 100 }
-  ```
-  Tidak ada perubahan kode OneBox lagi — jalur service sudah ditulis di
-  `VoiceOfCustomerSystemClient::fetchPage()`.
-- Sebelum itu, OneBox jalan pakai `api_mode: "user"` + guard `Options.company_id`.
+## Hasil (2026-07-21)
+
+Semua 5 poin acceptance terpenuhi. Yang berubah dari rencana awal: karena
+`GET /api/integration/v1/whoami` **jadi disediakan**, guard tenant OneBox tidak lagi
+di-skip di mode service — `assertTenant()` sekarang berlaku di kedua mode, plus
+pengecekan scope `reviews:read` di depan. Itu perubahan kode kecil di OneBox, bukan
+sekadar ganti `Connection.Options` seperti yang diperkirakan di bawah.
+
+- Bentuk response `/api/integration/v1/reviews` tidak berubah — `fetchPage()` jalan apa adanya.
+- Mode `user` tetap dipertahankan sebagai fallback debugging.

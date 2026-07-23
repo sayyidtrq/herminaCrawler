@@ -1,3 +1,6 @@
+> ⚠️ **SUPERSEDED oleh `../decisions/ADR-0001-ownership-inversion.md` (2026-07-21).**
+> **JANGAN dipakai sebagai acuan kerja baru.** Diagram di bawah menggambarkan VoC punya FE/dashboard sendiri dan memiliki master data — itu **sudah tidak berlaku**. VoC kini headless (hanya scraping); dashboard/lokasi/kompetitor/report semua di OneBox. Berlaku juga untuk `voc_onebox_architecture.drawio`. Disimpan sebagai histori.
+
 # Voice of Customer System × OneBox — Architecture Diagram
 
 > Versi Mermaid (render otomatis di Obsidian & GitHub). Versi editable/presentasi: [voc_onebox_architecture.drawio](voc_onebox_architecture.drawio) — buka di app.diagrams.net / draw.io desktop / plugin VS Code / plugin Obsidian "Diagrams".

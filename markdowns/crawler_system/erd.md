@@ -1,3 +1,6 @@
+> ⚠️ **SUPERSEDED oleh `decisions/ADR-0001-ownership-inversion.md` (2026-07-21).**
+> **JANGAN dipakai sebagai acuan kerja baru.** ERD di bawah menampilkan VoC memiliki `Location`, `Competitor`, `Company`, `User` — itu **sudah tidak berlaku**. Semua master data pindah ke OneBox; VoC hanya crawler engine headless. Disimpan sebagai histori.
+
 # Voice of Customer System — ERD Rancangan Target + Integrasi OneBox (Draft v2)
 
 > **Ini BUKAN potret schema existing.** Ini **rancangan pengembangan**: entity existing VoC dipertahankan sebagai fondasi, ditambah entity usulan baru, **dan disandingkan dengan entity OneBox** yang jadi tujuan integrasinya — supaya jalur datanya tergambar utuh lintas dua sistem.

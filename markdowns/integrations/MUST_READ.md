@@ -64,14 +64,22 @@ Jangan pindahkan logic Selenium/crawling ke OneBox.
 Claude Code fokus pada OneBox: baca struktur, cari pattern existing, implement client/sync task, mapping model, dan validasi UI.
 Codex fokus pada Voice of Customer  System: API contract, contoh request/response, docs handoff, API gap, tasklist, dan progress report.
 
+## Peta kerja aktif
+
+**[VOC_DEV_TASKLIST.md](VOC_DEV_TASKLIST.md)** — tasklist development per modul (M0–M9) berikut
+prasyarat, owner, dependensi, dan status. Ini yang menentukan **urutan & status** pekerjaan.
+Dokumen `RI-xx` dan `VOC-CS-xx` tetap dipakai sebagai **detail teknis** tiap task.
+
 ## Required Reading Order
 
 1. markdowns/integrations/MUST_READ.md
-2. markdowns/integrations/two_agents_workflow.md
+2. markdowns/integrations/VOC_DEV_TASKLIST.md
+3. markdowns/integrations/two_agents_workflow.md
 3. markdowns/integrations/tasklist(draft).md
 4. markdowns/integrations/developer_guide.md
 5. markdowns/integrations/superprompt.md
 6. markdowns/integrations/link-docs.md
+7. markdowns/integrations/implementation-plan-crawler-system/VOC-CS-08_consumer-worklist.md
 
 Dokumen lama boleh belum dimigrasi. Untuk pekerjaan baru, file ini yang menang.
 
@@ -82,13 +90,15 @@ Dokumen lama boleh belum dimigrasi. Untuk pekerjaan baru, file ini yang menang.
 - Jangan coding besar sebelum field mapping OneBox jelas.
 - Kalau OneBox butuh parameter yang belum ada, catat sebagai API gap Voice of Customer  System.
 - Handoff antar agent wajib menandai status: verified, assumption, atau blocked.
+- Worklist consumer wajib memakai ONEBOX_COMPANY_ID yang eksplisit; tenant tidak boleh ditebak.
+- OneBox adalah scheduler dan master data; Crawler System hanya me-refresh cache target lalu menjalankan crawling.
 
 ## Current Integration Assumption
 
 - Voice of Customer  System berjalan sebagai 3rd party service.
 - Deployment Voice of Customer  System memakai Docker.
 - **Dua arah pull (lihat [ADR-0003](../decisions/ADR-0003-crawl-execution-pull-queue.md)):**
-  - VoC **pull worklist** dari OneBox (`GET /api/integration/v1/worklist`) untuk tahu target crawl — menggantikan push `POST /api/locations`.
+  - VoC **pull worklist** dari OneBox (`GET /api/VocWorklist (configurable)`) untuk tahu target crawl — menggantikan push `POST /api/locations`.
   - OneBox **pull review delta** dari VoC (`GET /api/integration/v1/reviews`) untuk masuk Ticket.
 - Trigger crawl dari OneBox bersifat **non-blocking** (enqueue), bukan fetch sinkron menunggu Selenium.
 - Auth/access API dari sisi OneBox masih perlu dikonfirmasi.

@@ -21,6 +21,7 @@ from app.services.entitlement_service import EntitlementService
 from app.services.fetch_log_service import FetchLogService
 from app.services.location_service import LocationService
 from app.services.review_service import ReviewService
+from app.services.worklist_sync_service import WorklistSyncError, WorklistSyncService
 from app.utils.date_parser import (
     is_within_date_range,
     parse_datetime,
@@ -42,7 +43,17 @@ class FetchService:
     ):
         self.company_id = company_id
         self.settings = settings or get_settings()
+        self.session_factory = session_factory
         self.location_service = LocationService(company_id=company_id, session_factory=session_factory)
+        self.worklist_sync_service = (
+            WorklistSyncService(
+                company_id=company_id,
+                session_factory=session_factory,
+                settings=self.settings,
+            )
+            if WorklistSyncService.is_configured(self.settings)
+            else None
+        )
         self.review_service = ReviewService(company_id=company_id, session_factory=session_factory)
         self.fetch_log_service = FetchLogService(company_id=company_id, session_factory=session_factory)
         self.client = client or self._build_client()
@@ -64,6 +75,7 @@ class FetchService:
 
     def _fetch_with_retry(self, location) -> list[dict]:
         attempts = max(1, self.settings.fetch_max_retry + 1)
+        client = MockReviewClient() if getattr(location, 'is_mock', False) else self.client
         delays = [5, 15, 30]
         for attempt in range(attempts):
             try:
@@ -74,7 +86,7 @@ class FetchService:
                         limit = EntitlementService(
                             self.company_id
                         ).clamp_review_target(limit)
-                return self.client.fetch_reviews(location, limit=limit)
+                return client.fetch_reviews(location, limit=limit)
             except ReviewSourceError as exc:
                 if not exc.retriable or attempt == attempts - 1:
                     raise
@@ -149,17 +161,44 @@ class FetchService:
             normalized["review_hash"] = generate_review_hash(normalized)
         return normalized
 
+    def _refresh_worklist(self) -> dict:
+        if self.worklist_sync_service is None:
+            return {"status": "not_configured"}
+        try:
+            result = self.worklist_sync_service.refresh()
+            logger.info(
+                "Worklist refresh status=%s fetched=%s deactivated=%s",
+                result.status,
+                result.fetched,
+                result.deactivated,
+            )
+            return result.as_dict()
+        except WorklistSyncError:
+            logger.exception("Worklist refresh failed; crawl run was not started.")
+            raise
+
     def fetch_location(
         self,
         location_id: int,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        refresh_worklist: bool = True,
     ) -> dict:
+        worklist_result = self._refresh_worklist() if refresh_worklist else {"status": "not_run"}
         location = self.location_service.get_location(location_id)
         if location is None:
             raise ValueError("Location not found.")
 
         result = self._empty_result(location)
+        result["worklist_sync"] = worklist_result
+        if getattr(location, 'onebox_connection_id', None) is not None and not location.crawl_enabled:
+            result["status"] = "skipped_disabled"
+            result["error_message"] = "Location is disabled by the OneBox worklist."
+            return result
+        if getattr(location, 'onebox_connection_id', None) is not None and not location.ingest_reviews:
+            result["status"] = "skipped_ingest_disabled"
+            result["error_message"] = "Review ingestion is disabled by the OneBox worklist."
+            return result
         result["metadata"] = {
             "date_from": date_from.isoformat() if date_from else None,
             "date_to": date_to.isoformat() if date_to else None,
@@ -217,9 +256,13 @@ class FetchService:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> dict:
-        locations = self.location_service.get_all_locations(active_only=True)
+        worklist_result = self._refresh_worklist()
+        locations = self.location_service.get_all_locations(
+            active_only=True, crawl_enabled_only=True
+        )
         if not locations:
             return {
+                "worklist_sync": worklist_result,
                 "total_locations": 0,
                 "success": 0,
                 "failed": 0,
@@ -229,6 +272,7 @@ class FetchService:
                 "results": [],
             }
         summary = {
+            "worklist_sync": worklist_result,
             "total_locations": len(locations),
             "success": 0,
             "failed": 0,
@@ -238,7 +282,7 @@ class FetchService:
             "results": [],
         }
         for location in locations:
-            result = self.fetch_location(location.id, date_from=date_from, date_to=date_to)
+            result = self.fetch_location(location.id, date_from=date_from, date_to=date_to, refresh_worklist=False)
             summary["results"].append(result)
             if result["status"] in {"success", "partial_success"}:
                 summary["success"] += 1

@@ -28,6 +28,16 @@ def _as_int(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer.") from exc
 
 
+def _as_optional_int(name: str) -> int | None:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer when set.") from exc
+
+
 def _as_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -76,6 +86,15 @@ class Settings:
     integration_cursor_secret: str = LOCAL_CURSOR_SECRET_FALLBACK
     jwt_secret_key: str = LOCAL_JWT_SECRET_FALLBACK
     service_token_pepper: str = LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK
+    onebox_base_url: str | None = None
+    onebox_service_email: str | None = None
+    onebox_service_password: str | None = None
+    onebox_site_id: int | None = None
+    onebox_company_id: int | None = None
+    onebox_worklist_path: str = "/api/VocWorklist"
+    onebox_timeout_seconds: int = 30
+    onebox_max_retry: int = 3
+    onebox_cache_stale_after_seconds: int = 86400
 
     def ensure_export_dir(self) -> Path:
         self.export_dir.mkdir(parents=True, exist_ok=True)
@@ -197,4 +216,18 @@ def get_settings() -> Settings:
         integration_cursor_secret=integration_cursor_secret,
         jwt_secret_key=jwt_secret_key,
         service_token_pepper=service_token_pepper,
+        onebox_base_url=os.getenv("ONEBOX_BASE_URL") or None,
+        onebox_service_email=os.getenv("ONEBOX_SVC_EMAIL") or None,
+        onebox_service_password=os.getenv("ONEBOX_SVC_PASSWORD") or None,
+        onebox_site_id=_as_optional_int("ONEBOX_SITE_ID"),
+        onebox_company_id=_as_optional_int("ONEBOX_COMPANY_ID"),
+        onebox_worklist_path=(
+            os.getenv("ONEBOX_WORKLIST_PATH", "/api/VocWorklist").strip()
+            or "/api/VocWorklist"
+        ),
+        onebox_timeout_seconds=max(1, _as_int("ONEBOX_TIMEOUT_SECONDS", 30)),
+        onebox_max_retry=max(0, _as_int("ONEBOX_MAX_RETRY", 3)),
+        onebox_cache_stale_after_seconds=max(
+            0, _as_int("ONEBOX_WORKLIST_CACHE_STALE_AFTER_SECONDS", 86400)
+        ),
     )

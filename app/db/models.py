@@ -49,6 +49,7 @@ class Company(Base):
     locations: Mapped[list["Location"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     competitors: Mapped[list["Competitor"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     api_clients: Mapped[list["ApiClient"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    worklist_sync_states: Mapped[list["WorklistSyncState"]] = relationship(back_populates="company", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -108,6 +109,29 @@ class ApiClient(Base):
 
     company: Mapped[Company] = relationship(back_populates="api_clients")
 
+
+class WorklistSyncState(Base):
+    """Last pull outcome for the OneBox-owned worklist cache."""
+
+    __tablename__ = "worklist_sync_states"
+    __table_args__ = (
+        UniqueConstraint("company_id", name="uq_worklist_sync_states_company"),
+        Index("idx_worklist_sync_states_company", "company_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    site_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    item_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    company: Mapped[Company] = relationship(back_populates="worklist_sync_states")
+
+
 class Location(Base):
     __tablename__ = "locations"
     __table_args__ = (
@@ -133,6 +157,12 @@ class Location(Base):
     target_review_count: Mapped[int] = mapped_column(
         Integer, default=100, nullable=False
     )
+    onebox_connection_id: Mapped[int | None] = mapped_column(Integer)
+    onebox_location_id: Mapped[int | None] = mapped_column(Integer)
+    crawl_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    ingest_reviews: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_mock: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    worklist_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -321,6 +351,12 @@ class Competitor(Base):
     target_review_count: Mapped[int] = mapped_column(
         Integer, default=100, nullable=False
     )
+    onebox_connection_id: Mapped[int | None] = mapped_column(Integer)
+    onebox_location_id: Mapped[int | None] = mapped_column(Integer)
+    crawl_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ingest_reviews: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_mock: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    worklist_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

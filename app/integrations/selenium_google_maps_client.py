@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import time
 from datetime import datetime
 from urllib.parse import quote_plus, urlparse
@@ -16,6 +17,7 @@ from selenium.common.exceptions import (
     WebDriverException,
 )
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -110,6 +112,15 @@ class SeleniumGoogleMapsReviewClient(ReviewSourceClient):
         options.add_argument("--window-size=1440,1000")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        browser_path = (
+            shutil.which("google-chrome")
+            or shutil.which("chromium")
+            or shutil.which("chromium-browser")
+        )
+        if browser_path:
+            options.binary_location = browser_path
         if self.settings.selenium_user_data_dir:
             self.settings.selenium_user_data_dir.mkdir(
                 parents=True, exist_ok=True
@@ -119,8 +130,14 @@ class SeleniumGoogleMapsReviewClient(ReviewSourceClient):
             )
         if self.settings.selenium_headless:
             options.add_argument("--headless=new")
+        driver_path = shutil.which("chromedriver")
+        service = (
+            ChromeService(executable_path=driver_path)
+            if driver_path
+            else ChromeService()
+        )
         try:
-            return webdriver.Chrome(options=options)
+            return webdriver.Chrome(service=service, options=options)
         except WebDriverException as exc:
             raise ReviewSourceError(
                 "Selenium browser failed to start. Please check Chrome and "

@@ -9,6 +9,9 @@ from sqlalchemy.pool import StaticPool
 from app.config import Settings
 from app.db.base import Base
 from app.db.models import Company, FetchLog, Review
+from app.integrations.selenium_google_maps_client import (
+    SeleniumGoogleMapsReviewClient,
+)
 from app.services.location_service import LocationService
 from app.services.selenium_fetch_service import SeleniumFetchService
 from app.utils.hashing import generate_selenium_review_hash
@@ -105,6 +108,41 @@ def test_rating_and_count_parsers():
     assert parse_compact_count("1,2k orang merasa terbantu") == 1200
     assert parse_compact_count("37 ulasan") == 37
 
+
+def test_selenium_driver_uses_container_browser_and_safe_flags(
+    monkeypatch, tmp_path
+):
+    settings = make_settings(tmp_path)
+    captured = {}
+
+    def fake_which(binary):
+        return {
+            "chromium": "/usr/bin/chromium",
+            "chromedriver": "/usr/bin/chromedriver",
+        }.get(binary)
+
+    def fake_chrome(*, service, options):
+        captured["service"] = service
+        captured["options"] = options
+        return object()
+
+    monkeypatch.setattr(
+        "app.integrations.selenium_google_maps_client.shutil.which",
+        fake_which,
+    )
+    monkeypatch.setattr(
+        "app.integrations.selenium_google_maps_client.webdriver.Chrome",
+        fake_chrome,
+    )
+
+    result = SeleniumGoogleMapsReviewClient(settings)._create_driver()
+
+    assert result is not None
+    assert captured["options"].binary_location == "/usr/bin/chromium"
+    assert "--headless=new" in captured["options"].arguments
+    assert "--no-sandbox" in captured["options"].arguments
+    assert "--disable-dev-shm-usage" in captured["options"].arguments
+    assert captured["service"].path == "/usr/bin/chromedriver"
 
 def test_selenium_hash_uses_scraping_identity_fields():
     review = {

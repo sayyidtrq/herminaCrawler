@@ -1,0 +1,204 @@
+from __future__ import annotations
+
+from dataclasses import replace
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.config import get_settings
+from app.db.base import Base
+from app.db.models import ApiClient, Company, CrawlBatch, CrawlJob, Location
+from app.services.crawl_job_service import CrawlJobService
+from apps.api.app_api.routers.integration_crawl_jobs import (
+    get_crawl_queue_session_factory,
+)
+from apps.api.app_api.service_auth import ServicePrincipal, require_service_principal
+from apps.api.main import create_app
+
+
+@pytest.fixture()
+def session_factory():
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with factory() as session:
+        company_a = Company(name="Tenant A")
+        company_b = Company(name="Tenant B")
+        session.add_all([company_a, company_b])
+        session.flush()
+        client_a = ApiClient(
+            company_id=company_a.id,
+            name="onebox-a",
+            key_id="key-a",
+            secret_hash="hash-a",
+            scopes=["crawl:enqueue", "crawl:read"],
+        )
+        client_b = ApiClient(
+            company_id=company_b.id,
+            name="onebox-b",
+            key_id="key-b",
+            secret_hash="hash-b",
+            scopes=["crawl:enqueue", "crawl:read"],
+        )
+        session.add_all([client_a, client_b])
+        session.flush()
+        session.add_all(
+            [
+                Location(
+                    company_id=company_a.id,
+                    hospital_name="Hospital A",
+                    branch_name="Branch A",
+                    source="selenium_google_maps",
+                    external_place_id="place-a",
+                    onebox_location_id=101,
+                    target_review_count=2,
+                    crawl_enabled=True,
+                    ingest_reviews=True,
+                    is_active=True,
+                ),
+                Location(
+                    company_id=company_a.id,
+                    hospital_name="Hospital A",
+                    branch_name="Branch A2",
+                    source="selenium_google_maps",
+                    external_place_id="place-a2",
+                    onebox_location_id=102,
+                    target_review_count=2,
+                    crawl_enabled=True,
+                    ingest_reviews=True,
+                    is_active=True,
+                ),
+                Location(
+                    company_id=company_b.id,
+                    hospital_name="Hospital B",
+                    branch_name="Branch B",
+                    source="selenium_google_maps",
+                    external_place_id="place-b",
+                    onebox_location_id=201,
+                    target_review_count=2,
+                    crawl_enabled=True,
+                    ingest_reviews=True,
+                    is_active=True,
+                ),
+            ]
+        )
+        session.commit()
+    return factory
+
+
+def principal(company_id: int, client_id: int, scopes=None) -> ServicePrincipal:
+    return ServicePrincipal(
+        client_id=client_id,
+        key_id=f"key-{company_id}",
+        company_id=company_id,
+        scopes=frozenset(scopes or ["crawl:enqueue", "crawl:read"]),
+    )
+
+
+def make_client(session_factory, current_principal: ServicePrincipal) -> TestClient:
+    application = create_app()
+    application.dependency_overrides[get_crawl_queue_session_factory] = lambda: (
+        session_factory
+    )
+    application.dependency_overrides[require_service_principal] = lambda: (
+        current_principal
+    )
+    return TestClient(application)
+
+
+def enqueue(
+    client: TestClient, location_id: int = 101, key: str = "169:2026-07-29:morning"
+):
+    return client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": key},
+        json={"slot": "morning", "targets": [{"onebox_location_id": location_id}]},
+    )
+
+
+def test_enqueue_is_non_blocking_and_idempotent(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    first = enqueue(client)
+    second = enqueue(client)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert first.json()["data"]["batch_id"] == second.json()["data"]["batch_id"]
+    assert first.json()["data"]["status"] == "queued"
+    assert first.json()["data"]["jobs"][0]["onebox_location_id"] == 101
+    with session_factory() as session:
+        assert len(list(session.scalars(select(CrawlBatch)))) == 1
+        assert len(list(session.scalars(select(CrawlJob)))) == 1
+
+
+def test_idempotency_key_rejects_different_payload(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    assert enqueue(client).status_code == 202
+    response = enqueue(client, location_id=102)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
+def test_tenant_cannot_enqueue_or_read_another_tenants_target(session_factory):
+    tenant_a = make_client(session_factory, principal(1, 1))
+    batch_id = enqueue(tenant_a).json()["data"]["batch_id"]
+    tenant_b = make_client(session_factory, principal(2, 2))
+
+    cross_enqueue = enqueue(tenant_b, location_id=101, key="169:2026-07-29:tenant-b")
+    cross_read = tenant_b.get(f"/api/integration/v1/crawl-jobs/{batch_id}")
+    assert cross_enqueue.status_code == 404
+    assert cross_read.status_code == 404
+
+
+def test_scope_is_enforced(session_factory):
+    client = make_client(session_factory, principal(1, 1, scopes=["reviews:read"]))
+    response = enqueue(client)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "INSUFFICIENT_SCOPE"
+
+
+def test_worker_claims_and_completes_job(session_factory):
+    class FakeFetchService:
+        def fetch_location(self, location_id, target):
+            return {
+                "status": "success",
+                "location_id": location_id,
+                "target_review_count": target,
+                "total_fetched": 2,
+                "total_inserted": 2,
+                "total_duplicate": 0,
+            }
+
+    settings = replace(
+        get_settings(),
+        crawl_worker_max_attempts=3,
+        crawl_worker_lease_seconds=300,
+        crawl_worker_retry_base_seconds=1,
+    )
+    service = CrawlJobService(
+        session_factory=session_factory,
+        settings=settings,
+        fetch_service_factory=lambda _company_id: FakeFetchService(),
+    )
+    queued, created = service.enqueue(
+        company_id=1,
+        client_id=1,
+        idempotency_key="169:2026-07-29:worker",
+        onebox_location_ids=[101],
+        slot="morning",
+    )
+    assert created is True
+
+    completed = service.execute_next(worker_id="test-worker")
+    assert completed["batch_id"] == queued["batch_id"]
+    assert completed["status"] == "completed"
+    assert completed["jobs"][0]["status"] == "succeeded"
+    assert completed["jobs"][0]["onebox_location_id"] == 101
+    assert completed["jobs"][0]["result"]["total_inserted"] == 2

@@ -1,404 +1,282 @@
-# VOC Crawl Proof Runbook
+# VOC Crawl Proof Runbook - X1 sampai X5
 
-> Protocol verifikasi end-to-end untuk demo Voice of Customer di Dev. Acuan: `PLAN_KEY_PROCESS_DEMO.md`, `PROMPT_VOC_CRAWL_PROOF.md`, ADR-0001, ADR-0002, dan ADR-0003.
->
-> Label wajib: **[verified]** = ada bukti command/query/response; **[assumption]** = belum diuji; **[blocked]** = tertahan dependency atau contract gap.
+> Runbook verifikasi end-to-end Voice of Customer di environment Dev. Acuan: ADR-0001, ADR-0002, ADR-0003, `PLAN_KEY_PROCESS_DEMO.md`, dan `PROMPT_VOC_CRAWL_PROOF.md`.
+> Status klaim: **[verified-local]**, **[verified-dev]**, **[assumption]**, atau **[blocked]**.
 
-## 1. Tujuan dan scope
+## 1. Target proof
 
-Proof ini membuktikan satu target lokasi baru melewati rantai:
+Rantai yang harus terbukti:
 
-```text
-OneBox tambah lokasi
- -> OneBox publish worklist
- -> Crawler pull worklist
- -> Crawler crawl Google review
- -> Crawler simpan + dedup + AI analysis
- -> OneBox pull delta
- -> OneBox ingest menjadi Message/Ticket
- -> OneBox tampilkan dashboard dan eskalasi Ticket
-```
+~~~text
+OneBox menambah Location
+  -> Crawler menarik worklist
+  -> OneBox enqueue crawl via service API
+  -> worker Selenium mengambil review
+  -> Crawler menyimpan dan deduplikasi review
+  -> tahap AI mengisi sentiment, urgency, category, summary, action
+  -> OneBox menarik delta review
+  -> OneBox membuat Message/Ticket
+  -> pengguna assign, tindak lanjut, dan eskalasi Ticket
+~~~
 
-Ini proof demo, bukan production-readiness review. Gunakan satu company, satu site, satu lokasi, dan target review kecil. Jangan menaruh password, token, cookie, raw cursor, API key, atau full review text di Git, chat, screenshot, atau log.
+AI sengaja tidak dijalankan otomatis oleh worker crawl. Pemisahan ini mengikuti ADR-0002 dan membuat kegagalan crawl, LLM, serta ingestion dapat di-retry secara independen.
 
-## 2. Status saat ini
+## 2. Status implementasi
 
-| Tahap | Status | Bukti / catatan |
+| Proses | Status | Bukti |
 |---|---|---|
-| OneBox -> Crawler worklist pull | **[verified]** | `refresh_worklist` berhasil `status=synced`, `fetched=1`, `upserted=1`, `warning=null`. |
-| Service auth review pull | **[verified]** | `/api/integration/v1/whoami` dan `/reviews` memakai bearer service token. |
-| Tenant binding | **[verified]** | Company berasal dari token, bukan query request. |
-| Crawl target baru | **[blocked]** sampai X1 | Belum ada bukti live target yang baru masuk worklist. |
-| Review terikat lokasi benar | **[blocked]** sampai X1/X2 | Harus dibuktikan lewat API evidence. |
-| AI analysis target baru | **[blocked]** sampai X2 | LLM harus reachable dari container. |
-| Delta ke OneBox | **[assumption]** | Contract tersedia, ingest live terhadap review baru belum dibuktikan. |
-| Review -> Ticket -> eskalasi | **[assumption]** | Provider/mapping sudah ada, bukti live Dev belum dilampirkan. |
-| Trigger crawl dari OneBox | **[blocked]** | Crawl saat ini JWT user + synchronous; endpoint service-token non-blocking belum ada. |
+| Worklist OneBox -> Crawler | **[verified-dev]** | Sync pernah menghasilkan `status=synced` dan target masuk cache lokasi. |
+| X5 enqueue non-blocking | **[verified-local]** | `POST /api/integration/v1/crawl-jobs`, idempotency, tenant scope, durable queue, lease, retry, dan worker diuji otomatis. |
+| Runtime Chromium di image | **[verified-local]** | Chromium dan chromedriver dipaketkan di Dockerfile; unit test pencarian binary lulus. Build image Dev masih perlu dilakukan. |
+| X2 persistence + dedup | **[verified-local]** | Test Selenium persistence/dedup dan full test suite lulus. |
+| X3 analysis + token usage | **[verified-local]** | Analysis mengembalikan aggregate `tokens_used` dan breakdown provider usage. |
+| X4 service auth + delta | **[verified-local]** | Tenant binding, scope, cursor, dan delta contract diuji otomatis. |
+| X1 crawl Google real | **[blocked]** sampai proof Dev | Harus dijalankan pada satu target worklist di `ciptadra-svr`. |
+| Review -> Ticket -> eskalasi | **[blocked]** sampai proof Dev | Dilakukan setelah X1-X4 menghasilkan satu review baru. |
 
-## 3. Branch dan deployment rule
+## 3. Contract X5 yang sudah tersedia
 
-```text
-coding di branch DNG/DNGO
- -> push branch DNG
- -> Pull Request ke feature/voc
- -> merge oleh owner OneBox
- -> deployment/migration ke Dev
- -> uji di https://dev.onebox.co.id/feature/voc/
-```
+| Endpoint | Scope | Fungsi |
+|---|---|---|
+| `POST /api/integration/v1/crawl-jobs` | `crawl:enqueue` | Membuat batch durable dan langsung merespons `202`. |
+| `GET /api/integration/v1/crawl-jobs` | `crawl:read` | Menampilkan batch terbaru milik tenant token. |
+| `GET /api/integration/v1/crawl-jobs/{batch_id}` | `crawl:read` | Menampilkan status dan hasil per `onebox_location_id`. |
+| `GET /api/integration/v1/whoami` | service bearer | Memastikan token terikat ke company yang benar. |
+| `GET /api/integration/v1/reviews` | `reviews:read` | Menarik review delta tanpa mengubah contract v1. |
 
-Jangan menganggap branch DNG sudah otomatis tersedia di `dev.onebox.co.id`. Perubahan Crawler System yang diuji di `ciptadra-svr` harus memakai commit/image yang tercatat di evidence packet.
+Aturan penting:
 
-## 4. Contract aktual yang dipakai
+- `company_id` selalu berasal dari service token, tidak diterima dari payload.
+- Target POST memakai `onebox_location_id`, bukan primary key Crawler.
+- Target harus ada di worklist cache dan masih `active + crawl_enabled + ingest_reviews`.
+- `Idempotency-Key` wajib. Key sama dan payload sama mengembalikan batch lama; key sama dan payload berbeda menghasilkan `409 IDEMPOTENCY_CONFLICT`.
+- Satu worker Selenium adalah baseline aman. Job memakai lease dan retry sehingga restart container tidak menghilangkan antrean.
 
-### 4.1 Worklist OneBox -> Crawler
+## 4. Deployment Crawler System
 
-```text
-POST {ONEBOX_BASE_URL}/api/Authenticate
-  form: email, password, siteId
+P0 migrasi PostgreSQL ke MySQL sedang ditahan. Deploy proof ini tetap memakai database PostgreSQL yang aktif saat ini. Jangan menerapkan stash P0 bersama perubahan X1-X5.
 
-GET {ONEBOX_BASE_URL}/api/VocWorklist
-  Authorization: Bearer <JWT>
-```
+### 4.1 Pre-deploy
 
-Konfigurasi server Crawler:
-
-```dotenv
-ONEBOX_BASE_URL=https://dev.onebox.co.id/feature/voc
-ONEBOX_SVC_EMAIL=<service-account>
-ONEBOX_SVC_PASSWORD=<secret>
-ONEBOX_SITE_ID=<site-id>
-ONEBOX_COMPANY_ID=<explicit-voc-company-id>
-ONEBOX_WORKLIST_PATH=/api/VocWorklist
-```
-
-Item worklist minimal:
-
-```json
-{
-  "data": [{
-    "onebox_location_id": 12,
-    "kind": "location",
-    "external_place_id": "ChIJ...",
-    "branch_name": "Hermina Depok",
-    "active": true,
-    "crawl_enabled": true,
-    "ingest_reviews": true,
-    "target_review_count": 5
-  }],
-  "meta": {"site_id": 169, "count": 1}
-}
-```
-
-### 4.2 Endpoint Crawler saat ini
-
-| Endpoint | Auth | Sifat | Proof |
-|---|---|---|---|
-| `POST /api/fetch-jobs` | JWT user | synchronous/blocking | X1 |
-| `POST /api/fetch-jobs/all-active` | JWT user | synchronous/blocking | fallback saja |
-| `POST /api/pipeline/location` | JWT user | synchronous/blocking | opsi lokal, bukan contract OneBox |
-| `GET /api/fetch-logs` | JWT user | history | evidence X1 |
-| `POST /api/analysis/pending` | JWT user | synchronous | X3 |
-| `GET /api/integration/v1/whoami` | service bearer | validasi tenant | X4 |
-| `GET /api/integration/v1/reviews` | service bearer + `reviews:read` | delta pull | X4 |
-| `POST /api/integration/v1/crawl-jobs` | belum ada | non-blocking | X5 blocked |
-| `GET /api/integration/v1/crawl-jobs/{batch_id}` | belum ada | status batch | X5 blocked |
-
-### 4.3 Delta review contract
-
-```http
-GET /api/integration/v1/reviews?limit=100
-Authorization: Bearer <VOC_SERVICE_TOKEN>
-X-Request-ID: onebox-voc-proof-<run-id>
-```
-
-Response harus tetap berbentuk:
-
-```json
-{
-  "data": [],
-  "page": {
-    "limit": 100,
-    "has_more": false,
-    "next_cursor": null,
-    "checkpoint_cursor": "<opaque>",
-    "snapshot_at": "2026-07-29T00:00:00Z"
-  },
-  "meta": {"api_version": "v1", "request_id": "<id>"}
-}
-```
-
-OneBox menyimpan `checkpoint_cursor` hanya sesudah semua page berhasil di-ingest. Jika `has_more=true`, lanjut memakai `next_cursor`. Jangan mencampur crawl cursor milik Crawler dengan ingestion checkpoint milik OneBox.
-
-## 5. G0 - preflight server
-
-Jalankan di `ciptadra-svr`:
-
-```bash
+~~~bash
 cd ~/herminaCrawler
+git status --short --branch
+git fetch origin
+git switch codex/key-process-x1-x5
+git pull --ff-only
+~~~
+
+Berhenti bila server memiliki perubahan lokal yang tidak dikenal. Jangan melakukan reset atau overwrite.
+
+### 4.2 Build, migration, dan start
+
+~~~bash
+docker compose up -d --build --force-recreate
 docker compose ps
+docker compose logs --tail=200 api crawl-worker
 curl -fsS http://127.0.0.1:8000/api/health
-docker compose logs --tail=100 api
-docker compose exec api printenv ONEBOX_BASE_URL
-```
+~~~
 
-Gate G0 lulus bila container healthy, health/database `ok`, migration startup tidak error, dan URL menunjuk Dev feature yang benar.
+Expected:
 
-Refresh worklist:
+- service `api` healthy;
+- service `crawl-worker` running;
+- migration `20260729_0002` selesai;
+- tidak ada loop crash Chromium/worker.
 
-```bash
-docker compose exec api \
-  python -m scripts.refresh_worklist \
-  --company-id <VOC_COMPANY_ID> \
-  --json
-```
+Verifikasi revision:
 
-Expected non-secret evidence:
+~~~bash
+docker compose exec api python -m alembic current
+~~~
 
-```json
-{"status":"synced","company_id":3,"site_id":169,"fetched":1,"upserted":1,"deactivated":0,"warning":null}
-```
+## 5. G0 - refresh worklist
 
-Jika `fetched=0`, berhenti. Pastikan OneBox publish item dengan `active=true`, `crawl_enabled=true`, dan `ingest_reviews=true`; jangan membuat `location_id` manual.
+~~~bash
+docker compose exec api python -m scripts.refresh_worklist --company-id 3 --json
+~~~
 
-## 6. X1 - gerbang crawl satu target
+Gate lulus bila `status=synced`, `fetched>0`, `upserted>=0`, dan `warning=null`. Jika `fetched=0`, periksa SiteId serta flag `active`, `crawl_enabled`, dan `ingest_reviews` di OneBox. Jangan membuat Location Crawler secara manual.
 
-### 6.1 Dapatkan lokasi hasil worklist
+Catat `onebox_location_id` target tanpa menyimpan review text:
 
-Endpoint lokasi saat ini JWT user, bukan service token.
+~~~bash
+docker compose exec api python -c "from app.db.session import get_session_factory; from app.db.models import Location; from sqlalchemy import select; f=get_session_factory(); s=f(); print([(x.onebox_location_id,x.branch_name,x.crawl_enabled,x.ingest_reviews) for x in s.scalars(select(Location).where(Location.company_id==3,Location.is_active.is_(True)))])"
+~~~
 
-```bash
+## 6. Issue service token proof
+
+Perintah berikut otomatis menyertakan default `reviews:read`, lalu menambahkan dua scope crawl:
+
+~~~bash
+docker compose exec api python -m scripts.manage_api_client issue --company-id 3 --name onebox-crawl-dev --scope crawl:enqueue --scope crawl:read --expires-days 7
+~~~
+
+Raw token hanya tampil sekali. Simpan di secret/config OneBox dan shell sementara, bukan Git, screenshot, atau chat.
+
+~~~bash
 export VOC_API=http://127.0.0.1:8000
-export VOC_USER_TOKEN='<JWT-user-sementara>'
+export VOC_SERVICE_TOKEN="<voc_staging_key.secret>"
+curl -fsS "$VOC_API/api/integration/v1/whoami" -H "Authorization: Bearer $VOC_SERVICE_TOKEN"
+~~~
 
-curl -fsS "$VOC_API/api/locations?active_only=true" \
-  -H "Authorization: Bearer $VOC_USER_TOKEN"
-```
+Gate lulus bila `company_id=3` dan scopes berisi `reviews:read`, `crawl:enqueue`, serta `crawl:read`.
 
-Catat hanya `id`, `branch_name`, `external_place_id`, `onebox_location_id`, `crawl_enabled`, dan `ingest_reviews`. Pilih lokasi dari worklist, lalu:
+## 7. X1 dan X5 - enqueue crawl real
 
-```bash
-export VOC_LOCATION_ID='<id VoC hasil response>'
+Gunakan target kecil agar proof terkendali. Nilai target aktual tetap berasal dari worklist Location.
+
+~~~bash
+export ONEBOX_LOCATION_ID="<id-dari-worklist>"
 export RUN_ID="voc-proof-$(date -u +%Y%m%dT%H%M%SZ)"
-```
 
-### 6.2 Jalankan crawl dengan target kecil
-
-```bash
-curl -fsS -X POST "$VOC_API/api/fetch-jobs" \
-  -H "Authorization: Bearer $VOC_USER_TOKEN" \
+curl -fsS -X POST "$VOC_API/api/integration/v1/crawl-jobs" \
+  -H "Authorization: Bearer $VOC_SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $RUN_ID" \
   -H "X-Request-ID: $RUN_ID" \
-  -d "{\"location_id\":$VOC_LOCATION_ID,\"source\":\"selenium\",\"target_review_count\":5}"
-```
+  -d "$(printf '{\"slot\":\"manual-proof\",\"targets\":[{\"onebox_location_id\":%s}]}' "$ONEBOX_LOCATION_ID")"
+~~~
 
-Catat command, waktu UTC, lokasi, durasi, `status`, `total_fetched`, `total_inserted`, `total_duplicate`, `total_failed`, `metadata.headless`, dan error singkat.
+Response harus HTTP `202` dengan `batch_id`, status `queued`, dan job yang mengembalikan `onebox_location_id` yang sama. Simpan batch ID:
 
-Gate X1:
+~~~bash
+export BATCH_ID="<batch-id-response>"
+curl -fsS "$VOC_API/api/integration/v1/crawl-jobs/$BATCH_ID" \
+  -H "Authorization: Bearer $VOC_SERVICE_TOKEN"
+docker compose logs --tail=200 crawl-worker
+~~~
+
+Gate X1/X5:
 
 | Hasil | Keputusan |
 |---|---|
-| `success`/`partial_success` dan `total_fetched > 0` | X1 lulus; lanjut X2. |
-| fetched > 0 tetapi semua duplicate | Teknis lulus; butuh review baru/window lain untuk proof ingestion. |
-| `failed`, `no such window`, browser crash, atau container review tidak ditemukan | X1 gagal; berhenti dan dokumentasikan. |
-| Login Google GUI wajib tiap run | X1 blocked untuk automation; jangan klaim scheduler ready. |
+| API cepat memberi `202`, job menjadi `succeeded`, dan `total_fetched>0` | Lulus; lanjut X2. |
+| `succeeded` tetapi fetched 0 | Queue terbukti, crawl data belum terbukti; pilih target yang punya review. |
+| `retry_wait` | Periksa error tersanitasi dan worker log; tunggu retry. |
+| `failed` setelah max attempts | X1 gagal; cek Chromium, jaringan Google, profile, quota, atau selector. |
+| `404 TARGET_NOT_FOUND` | Worklist target belum tersinkron atau dinonaktifkan. |
 
-Fetch history:
+Jalankan POST yang sama dengan `Idempotency-Key` dan payload yang sama. Batch ID harus tetap sama dan job tidak boleh bertambah.
 
-```bash
-curl -fsS "$VOC_API/api/fetch-logs?location_id=$VOC_LOCATION_ID&limit=5" \
+## 8. X2 - persistence dan dedup
+
+Gunakan JWT user hanya untuk endpoint operasional lama selama belum tersedia read-only proof endpoint service. Jangan memasukkan token ke evidence.
+
+~~~bash
+export VOC_USER_TOKEN="<jwt-user-sementara>"
+curl -fsS "$VOC_API/api/reviews?page=1&page_size=20&latest_first=true" \
   -H "Authorization: Bearer $VOC_USER_TOKEN"
-```
+~~~
 
-## 7. X2 - identity, persistence, dan dedup
+Bukti X2:
 
-```bash
-curl -fsS "$VOC_API/api/reviews?location_id=$VOC_LOCATION_ID&page=1&page_size=20&latest_first=true" \
-  -H "Authorization: Bearer $VOC_USER_TOKEN"
-```
+- review terikat ke Location yang memiliki `onebox_location_id` target;
+- `external_place_id` sama dengan worklist;
+- `review_hash` terisi;
+- run kedua tidak membuat duplikat dan menambah counter duplicate atau menghasilkan inserted 0.
 
-Bukti harus menunjukkan:
+Jika mapping lokasi salah, hentikan ingestion OneBox.
 
-```text
-review.location_id == VOC_LOCATION_ID
-review.external_place_id == location.external_place_id
-review.review_hash terisi
-```
+## 9. X3 - AI analysis
 
-Ulangi command X1 sekali. Expected: `total_duplicate` naik atau `total_inserted=0`, tanpa review ganda. Jika lokasi/place ID salah, hentikan OneBox ingest dan perbaiki worklist mapping.
+Tes konektivitas LLM dari container:
 
-## 8. X3 - AI analysis
+~~~bash
+docker compose exec api sh -lc 'curl -fsS --connect-timeout 5 "$LOCAL_LLM_BASE_URL" >/dev/null && echo LLM_REACHABLE'
+~~~
 
-Pastikan provider LLM reachable dari container; jangan hanya mengetes dari laptop:
+Jalankan tahap analysis terpisah:
 
-```bash
-docker compose exec api sh -lc \
-  'curl -fsS --connect-timeout 5 "$LOCAL_LLM_BASE_URL" >/dev/null && echo LLM_REACHABLE'
-```
-
-Jalankan analysis untuk lokasi proof:
-
-```bash
+~~~bash
 curl -fsS -X POST "$VOC_API/api/analysis/pending" \
   -H "Authorization: Bearer $VOC_USER_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"location_id\":$VOC_LOCATION_ID}"
-```
+  -d "{"location_id":<voc-location-id-internal>}"
+~~~
 
-Verifikasi review kembali: `analyzed=true`, `sentiment`, `urgency`, `issue_category`, `summary`, dan `recommended_action` terisi. Catat `total/success/failed`. Jika `tokens_used` belum dikembalikan oleh contract, tandai **[blocked] metering gap**, jangan mengarang angka.
+Gate lulus bila success lebih dari 0, `tokens_used` dan `token_usage` tercatat, serta review memiliki sentiment, urgency, issue_category, summary, dan recommended_action.
 
-Gate X3 gagal bila LLM timeout, semua kategori jatuh ke satu kategori tanpa alasan, atau sample critical tidak memiliki flag/urgency yang dapat ditindaklanjuti.
+## 10. X4 - delta pull
 
-## 9. X4 - service token dan delta pull
-
-Issue token pendek untuk proof; raw token hanya muncul sekali:
-
-```bash
-docker compose exec api \
-  python -m scripts.manage_api_client issue \
-  --company-id <VOC_COMPANY_ID> \
-  --name onebox-dev-proof \
-  --scope reviews:read \
-  --expires-days 7
-```
-
-Jangan menaruh token di Git/chat. Validasi tenant tanpa membuka DB:
-
-```bash
-export VOC_SERVICE_TOKEN='<raw-token-di-shell-sementara>'
-
-curl -fsS "$VOC_API/api/integration/v1/whoami" \
+~~~bash
+export UPDATED_SINCE="<UTC-sebelum-crawl>"
+curl -fsS "$VOC_API/api/integration/v1/reviews?limit=100&updated_since=$UPDATED_SINCE" \
   -H "Authorization: Bearer $VOC_SERVICE_TOKEN" \
-  -H "Accept: application/json"
-```
+  -H "X-Request-ID: $RUN_ID-delta"
+~~~
 
-Expected `company_id` harus sama dengan tenant SiteId OneBox dan `scopes` berisi `reviews:read`.
+Gate lulus bila review X1 muncul dengan lokasi dan hasil analysis benar. Ikuti `next_cursor` ketika `has_more=true`; simpan `checkpoint_cursor` di OneBox hanya setelah seluruh page berhasil di-ingest.
 
-Pull target baru dengan watermark sebelum waktu crawl:
+## 11. Handoff ke OneBox
 
-```bash
-export UPDATED_SINCE='<UTC sebelum crawl, contoh 2026-07-28T00:00:00Z>'
+Claude/agen OneBox menjalankan receive pada Connection Dev:
 
-curl -fsS "$VOC_API/api/integration/v1/reviews?limit=100&location_id=$VOC_LOCATION_ID&updated_since=$UPDATED_SINCE" \
-  -H "Authorization: Bearer $VOC_SERVICE_TOKEN" \
-  -H "X-Request-ID: $RUN_ID-delta" \
-  -H "Accept: application/json"
-```
+~~~bash
+docker exec <onebox-webapp-container> php app/bootstrap.php voice_of_customer_system receive <CONNECTION_ID>
+~~~
 
-Bukti X4 harus menemukan review X1, lokasi benar, dan field analysis. Jika `has_more=true`, proses `next_cursor`; setelah page terakhir simpan `checkpoint_cursor` di OneBox. Untuk lokasi baru setelah checkpoint tenant maju, gunakan backfill terarah `location_id + updated_since` sebelum memasukkannya ke aliran delta biasa.
+Verifikasi di UI:
 
-## 10. Handoff OneBox: ingest -> Ticket -> eskalasi
+1. Review muncul di VOC Reviews.
+2. Ticket Location menunjuk cabang benar, bukan Unknown.
+3. Sentiment, urgency, category, summary, dan recommended action tampil.
+4. Review negatif menjadi Ticket terbuka.
+5. Ticket dapat di-assign, diberi action note, diubah status, dan dieskalasi.
+6. Dashboard konsisten dengan jumlah data hasil proof.
 
-Setelah X4 lulus, agen OneBox menjalankan receive pada connection VOC Dev:
+## 12. Pembagian dua agen
 
-```bash
-docker exec <onebox-webapp-container> \
-  php app/bootstrap.php voice_of_customer_system receive <CONNECTION_ID>
-```
+### Codex - Crawler System
 
-Jika analysis pass dipisahkan oleh implementation OneBox:
+- deploy branch dan verifikasi migration/worker;
+- refresh worklist;
+- issue token proof dengan scope lengkap;
+- menjalankan X1/X5, X2, X3, dan X4;
+- menyerahkan evidence tanpa secret atau full review text;
+- mencatat blocker Selenium/LLM/network berdasarkan stage yang tepat.
 
-```bash
-docker exec <onebox-webapp-container> \
-  php app/bootstrap.php voice_of_customer_system analysis <CONNECTION_ID>
-```
+### Claude - OneBox
 
-Catat hanya counters `fetched`, `inserted`, `deduped`, `failed`, dan `analysis_updated`.
+- memastikan PR OneBox sudah masuk `feature/voc` dan deployed;
+- menyimpan service token di secret/config Connection;
+- memanggil enqueue dengan `onebox_location_id` dan idempotency key;
+- melakukan receive delta dan memajukan checkpoint hanya setelah sukses penuh;
+- membuktikan mapping Message/Ticket, Location, assignment, dan escalation;
+- menampilkan status batch pada Fetch Jobs tanpa menunggu Selenium di request web.
 
-Di UI OneBox verifikasi:
+## 13. Decision gates
 
-1. Review muncul di VOC/Reviews.
-2. `Ticket.LocationId` menunjuk cabang benar, bukan `Unknown`.
-3. Rating, sentiment, urgency, category, summary, dan recommended action tampil.
-4. Review negatif/critical menjadi Ticket terbuka.
-5. Ticket dapat di-assign ke PIC, diberi action note, diubah status, dan dieskalasi.
-6. Dashboard menampilkan angka yang konsisten dengan evidence Crawler.
-
-Review yang mengindikasikan keselamatan pasien tetap harus masuk kanal investigasi klinis resmi; Ticket VoC adalah sinyal eskalasi awal.
-
-## 11. Handoff dua agen
-
-### Codex / Crawler System
-
-- [ ] X1 crawl satu target baru berhasil, atau gagal dengan tahap/sebab terdokumentasi.
-- [ ] X2 `location_id`, `external_place_id`, dan `review_hash` cocok.
-- [ ] X2 run kedua idempotent.
-- [ ] X3 analysis success/failure dan LLM reachability tercatat.
-- [ ] X4 `whoami` cocok dengan tenant OneBox.
-- [ ] X4 delta mengembalikan review baru dan cursor diproses benar.
-- [ ] X5 dicatat sebagai gap bila enqueue non-blocking belum ada.
-
-### Claude / OneBox
-
-- [ ] Connection Dev memiliki URL API, auth mode, token, SiteId, dan company benar.
-- [ ] Token berada di secret/config, bukan Git.
-- [ ] `whoami` diverifikasi sebelum receive.
-- [ ] Receive hanya memajukan checkpoint setelah sukses penuh.
-- [ ] Mapping menghasilkan `Ticket.LocationId` yang benar.
-- [ ] Dedup memakai `review_hash`/RemoteId.
-- [ ] Analysis fields dipetakan ke Ticket/Meta.
-- [ ] Ticket negatif dapat di-assign dan dieskalasi.
-- [ ] UI menampilkan status/history yang benar-benar tersedia.
-- [ ] Tombol Run now tidak memanggil endpoint blocking; buat PR X5 dahulu.
-
-## 12. Decision gates dan triage
-
-| Gate | Lulus bila | Jika gagal |
-|---|---|---|
-| G0 network/config | health 200, worklist synced | perbaiki URL/auth/worklist |
-| G1 X1 | fetched > 0 atau failure terjelaskan | cek Selenium/profile/Google access |
-| G2 identity | location dan place ID cocok | perbaiki mapping, jangan ingest |
-| G3 analysis | field analysis terisi | cek LLM/entitlement/prompt |
-| G4 integration | whoami benar + delta berisi review | cek token/scope/cursor/backfill |
-| G5 action | Ticket benar, open, assignable | cek Connection/provider/mapping |
-| G6 automation | enqueue cepat + batch status | X5 masih blocked; demo manual |
-
-| Gejala | Arti/tindakan |
+| Gate | Lulus bila |
 |---|---|
-| worklist `fetched=0` | cek SiteId dan flag worklist |
-| `302 /Login` | path web salah; konfirmasi auth API |
-| `401` | account/password/SiteId/permission salah |
-| Selenium crash/no window | X1 failed; jangan klaim automation |
-| LLM timeout | provider tidak reachable dari container |
-| delta kosong | checkpoint maju; backfill location + updated_since |
-| Ticket `Unknown` | mapping OneBox location gagal |
-| `403 INSUFFICIENT_SCOPE` | token tidak punya `reviews:read` |
+| G0 | API healthy, worker running, worklist synced. |
+| G1 | Enqueue memberi 202 dan worker mendapatkan review real. |
+| G2 | Location/place/hash benar dan rerun tidak duplikat. |
+| G3 | Analysis fields serta token usage terisi. |
+| G4 | Service token tenant benar dan delta berisi review proof. |
+| G5 | OneBox membuat Ticket yang dapat ditindaklanjuti. |
 
-## 13. Demo script 5-7 menit
+## 14. Evidence packet
 
-1. OneBox: tambah/aktifkan cabang dengan Google Place ID.
-2. Crawler: tunjukkan `refresh_worklist` `synced/fetched/upserted`.
-3. Crawler: tunjukkan fetch evidence X1, bukan menjalankan Selenium live di depan penonton kecuali gate X1 sudah verified stabil.
-4. Crawler: tunjukkan review dengan lokasi/hash/analysis yang benar.
-5. Integration: tunjukkan `whoami` dan delta pull; token/cursor tetap disamarkan.
-6. OneBox: jalankan receive dan buka Review/Ticket.
-7. OneBox: assign Ticket negatif, tambah action note, ubah status/escalate.
-8. Dashboard: tunjukkan sentiment, urgency, trend, dan cabang berisiko.
-9. Sebutkan batasan yang belum lulus: live Selenium, X5 non-blocking, scheduler tiga window, quota AI, dan competitor review.
+~~~text
+00_run_metadata.txt
+01_worklist_redacted.json
+02_enqueue_response.json
+03_batch_final.json
+04_worker_log_redacted.txt
+05_review_identity_redacted.json
+06_analysis_summary.json
+07_whoami_redacted.json
+08_delta_redacted.json
+09_onebox_ingest_counters.txt
+10_ticket_redacted.png
+~~~
 
-## 14. Contract gaps yang ditemukan
+Jangan menyimpan password, raw token/JWT, Selenium cookies/profile, API key, cursor penuh, raw payload, atau full review text.
 
-1. **[verified]** Crawl, analysis, dan fetch-log hanya menerima JWT user; service token hanya tersedia pada `/api/integration/v1/whoami` dan `/reviews`.
-2. **[verified]** `POST /api/fetch-jobs` dan pipeline synchronous/blocking. `/api/integration/v1/crawl-jobs` serta status batch belum ada.
-3. **[verified]** Worklist code default memakai `GET /api/VocWorklist`, sedangkan ADR-0003 menyebut `/api/integration/v1/worklist`. Tetapkan satu canonical path.
-4. **[verified]** Worklist auth memakai JWT hasil `/api/Authenticate`; review pull memakai opaque `voc_...` token. Keduanya bukan credential yang sama.
-5. **[verified]** Review v1 punya `updated_since`, `location_id`, keyset cursor, checkpoint, dan field analysis. `tokens_used` belum terlihat pada projection response; metering menjadi gap bila diwajibkan.
-6. **[assumption]** Provider/Connection OneBox Dev sudah diarahkan ke route v1 dan mampu membuat Ticket; perlu evidence dari agen OneBox.
-7. **[assumption]** Selenium dapat stabil headless tanpa login GUI setiap run; X1 adalah gerbang untuk mengubahnya menjadi verified.
+## 15. Known limitations setelah proof
 
-## 15. Evidence packet
-
-Simpan internal, bukan repo publik:
-
-```text
-00_run_metadata.txt       # UTC, branch/image, environment, actor
-01_worklist_redacted.json # status/count/site/company
-02_fetch_result.json      # counters + metadata
-03_fetch_log.json         # target/status/timestamps
-04_review_evidence.json   # id/location/place/hash/analysis
-05_whoami_redacted.json   # company/name/scopes
-06_delta_redacted.json    # item count/page metadata
-07_onebox_ingest.txt      # fetched/inserted/deduped/failed
-08_ticket_screenshot.png  # detail/dashboard, redact sensitive data
-```
-
-Jangan simpan password, raw token/JWT, cookie Selenium, full cursor, API key, raw payload, atau full review text.
+- Scheduler tiga window masih pekerjaan terpisah; OneBox tetap control plane jadwal.
+- Baseline worker hanya satu concurrency untuk menjaga stabilitas Selenium.
+- P0 migrasi PostgreSQL ke MySQL ditahan dan harus direbase terhadap migration queue ini saat dilanjutkan.
+- Production monitoring, secret rotation, retention, dan capacity test belum dibuktikan oleh proof ini.

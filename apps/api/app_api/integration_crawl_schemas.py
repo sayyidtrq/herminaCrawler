@@ -1,0 +1,58 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class CrawlTargetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    onebox_location_id: int = Field(gt=0)
+
+
+class CrawlBatchCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slot: str | None = Field(default=None, max_length=50)
+    targets: list[CrawlTargetRequest] = Field(min_length=1, max_length=500)
+
+
+class CrawlJobErrorResponse(BaseModel):
+    code: str
+    message: str
+
+
+class CrawlJobResponse(BaseModel):
+    job_id: int
+    onebox_location_id: int
+    status: str
+    attempts: int
+    max_attempts: int
+    result: dict[str, Any]
+    error: CrawlJobErrorResponse | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class CrawlBatchDataResponse(BaseModel):
+    batch_id: str
+    status: str
+    slot: str | None = None
+    job_count: int
+    counts: dict[str, int]
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    jobs: list[CrawlJobResponse] | None = None
+
+
+class CrawlBatchResponse(BaseModel):
+    data: CrawlBatchDataResponse
+    meta: dict[str, str]
+
+
+class CrawlBatchListResponse(BaseModel):
+    data: list[CrawlBatchDataResponse]
+    meta: dict[str, str | int]

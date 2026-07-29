@@ -85,7 +85,11 @@ class AnalysisService:
 
     def rerun_location(self, location_id: int) -> dict:
         with self.session_factory() as session:
-            statement = select(Review).where(Review.location_id == location_id).order_by(Review.id)
+            statement = (
+                select(Review)
+                .where(Review.location_id == location_id)
+                .order_by(Review.id)
+            )
             if self.company_id is not None:
                 statement = statement.where(Review.company_id == self.company_id)
             reviews = list(session.scalars(statement))
@@ -106,6 +110,12 @@ class AnalysisService:
                 "unknown": 0,
             },
             "errors": [],
+            "tokens_used": 0,
+            "token_usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            },
         }
         batch_size = max(1, self.settings.analysis_batch_size)
         for start in range(0, len(reviews), batch_size):
@@ -122,6 +132,10 @@ class AnalysisService:
                     continue
                 try:
                     raw_result = self.client.analyze_review(review)
+                    usage = getattr(self.client, "last_usage", {}) or {}
+                    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                        result["token_usage"][key] += int(usage.get(key, 0) or 0)
+                    result["tokens_used"] = result["token_usage"]["total_tokens"]
                     cleaned = self._validate_result(raw_result)
                     self._store_analysis(review["id"], cleaned, raw_result)
                     result["success"] += 1
@@ -134,9 +148,7 @@ class AnalysisService:
                     logger.exception("Analysis failed for review %s", review["id"])
         return result
 
-    def _store_analysis(
-        self, review_id: int, cleaned: dict, raw_result: dict
-    ) -> None:
+    def _store_analysis(self, review_id: int, cleaned: dict, raw_result: dict) -> None:
         with self.session_factory() as session:
             statement = select(Review).where(Review.id == review_id)
             if self.company_id is not None:
@@ -162,9 +174,7 @@ class AnalysisService:
                     recommended_action=cleaned["recommended_action"],
                     keywords=cleaned["keywords"],
                     is_potential_viral=cleaned["is_potential_viral"],
-                    is_patient_safety_issue=cleaned[
-                        "is_patient_safety_issue"
-                    ],
+                    is_patient_safety_issue=cleaned["is_patient_safety_issue"],
                     model_name=self.client.model_name,
                     prompt_version=self.settings.prompt_version,
                     raw_response=raw_result,
@@ -232,4 +242,3 @@ class AnalysisService:
                 result.get("is_patient_safety_issue", False)
             ),
         }
-

@@ -35,6 +35,7 @@ class LocalLLMClient(GeminiClientBase):
     def __init__(self, settings: Settings, sdk_client: OpenAI | None = None):
         self.settings = settings
         self.model_name = settings.local_llm_model
+        self.last_usage: dict[str, int] = {}
 
         self.client = sdk_client or OpenAI(
             base_url=self.settings.local_llm_base_url,
@@ -83,6 +84,12 @@ class LocalLLMClient(GeminiClientBase):
             response_format={"type": "json_object"},
         )
 
+        usage = getattr(response, "usage", None)
+        self.last_usage = {
+            "prompt_tokens": int(getattr(usage, "prompt_tokens", 0) or 0),
+            "completion_tokens": int(getattr(usage, "completion_tokens", 0) or 0),
+            "total_tokens": int(getattr(usage, "total_tokens", 0) or 0),
+        }
         content = response.choices[0].message.content
         if not content:
             raise RuntimeError("Local LLM returned an empty response.")

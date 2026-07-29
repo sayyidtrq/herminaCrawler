@@ -92,9 +92,7 @@ class GeminiClient(GeminiClientBase):
             if isinstance(response.parsed, ReviewAnalysisResult):
                 return response.parsed.model_dump()
             if isinstance(response.parsed, dict):
-                return ReviewAnalysisResult.model_validate(
-                    response.parsed
-                ).model_dump()
+                return ReviewAnalysisResult.model_validate(response.parsed).model_dump()
         if not response.text:
             raise RuntimeError("Gemini returned an empty response.")
         try:

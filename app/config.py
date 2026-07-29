@@ -15,7 +15,9 @@ load_dotenv(BASE_DIR / ".env")
 # real INTEGRATION_CURSOR_SECRET anywhere else.
 LOCAL_CURSOR_SECRET_FALLBACK = "local-only-cursor-secret-never-deploy-this"
 LOCAL_JWT_SECRET_FALLBACK = "local-only-jwt-secret-never-deploy-this"
-LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK = "local-only-service-token-pepper-never-deploy-this"
+LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK = (
+    "local-only-service-token-pepper-never-deploy-this"
+)
 
 
 def _as_int(name: str, default: int) -> int:
@@ -95,6 +97,10 @@ class Settings:
     onebox_timeout_seconds: int = 30
     onebox_max_retry: int = 3
     onebox_cache_stale_after_seconds: int = 86400
+    crawl_worker_lease_seconds: int = 900
+    crawl_worker_max_attempts: int = 3
+    crawl_worker_poll_seconds: int = 5
+    crawl_worker_retry_base_seconds: int = 60
 
     def ensure_export_dir(self) -> Path:
         self.export_dir.mkdir(parents=True, exist_ok=True)
@@ -183,31 +189,25 @@ def get_settings() -> Settings:
         google_places_language_code=os.getenv(
             "GOOGLE_PLACES_LANGUAGE_CODE", "id"
         ).strip(),
-        google_places_region_code=os.getenv(
-            "GOOGLE_PLACES_REGION_CODE", "ID"
+        google_places_region_code=os.getenv("GOOGLE_PLACES_REGION_CODE", "ID").strip(),
+        local_llm_base_url=os.getenv(
+            "LOCAL_LLM_BASE_URL", "http://192.168.1.115:11434/v1/"
         ).strip(),
-        local_llm_base_url=os.getenv("LOCAL_LLM_BASE_URL", "http://192.168.1.115:11434/v1/").strip(),
         local_llm_api_key=os.getenv("LOCAL_LLM_API_KEY", "ollama") or None,
         local_llm_model=os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b").strip(),
         fetch_limit_per_location=_as_int("FETCH_LIMIT_PER_LOCATION", 50),
         fetch_timeout_seconds=_as_int("FETCH_TIMEOUT_SECONDS", 30),
         fetch_max_retry=_as_int("FETCH_MAX_RETRY", 3),
         selenium_headless=_as_bool("SELENIUM_HEADLESS", False),
-        selenium_default_target_reviews=_as_int(
-            "SELENIUM_DEFAULT_TARGET_REVIEWS", 100
-        ),
-        selenium_max_target_reviews=_as_int(
-            "SELENIUM_MAX_TARGET_REVIEWS", 300
-        ),
+        selenium_default_target_reviews=_as_int("SELENIUM_DEFAULT_TARGET_REVIEWS", 100),
+        selenium_max_target_reviews=_as_int("SELENIUM_MAX_TARGET_REVIEWS", 300),
         selenium_scroll_delay_seconds=max(
             2, _as_int("SELENIUM_SCROLL_DELAY_SECONDS", 2)
         ),
         selenium_max_scroll_attempts=min(
             100, max(1, _as_int("SELENIUM_MAX_SCROLL_ATTEMPTS", 100))
         ),
-        selenium_wait_timeout_seconds=_as_int(
-            "SELENIUM_WAIT_TIMEOUT_SECONDS", 20
-        ),
+        selenium_wait_timeout_seconds=_as_int("SELENIUM_WAIT_TIMEOUT_SECONDS", 20),
         selenium_user_data_dir=selenium_user_data_dir,
         analysis_batch_size=_as_int("ANALYSIS_BATCH_SIZE", 20),
         prompt_version=os.getenv("PROMPT_VERSION", "v1").strip(),
@@ -229,5 +229,11 @@ def get_settings() -> Settings:
         onebox_max_retry=max(0, _as_int("ONEBOX_MAX_RETRY", 3)),
         onebox_cache_stale_after_seconds=max(
             0, _as_int("ONEBOX_WORKLIST_CACHE_STALE_AFTER_SECONDS", 86400)
+        ),
+        crawl_worker_lease_seconds=max(60, _as_int("CRAWL_WORKER_LEASE_SECONDS", 900)),
+        crawl_worker_max_attempts=max(1, _as_int("CRAWL_WORKER_MAX_ATTEMPTS", 3)),
+        crawl_worker_poll_seconds=max(1, _as_int("CRAWL_WORKER_POLL_SECONDS", 5)),
+        crawl_worker_retry_base_seconds=max(
+            1, _as_int("CRAWL_WORKER_RETRY_BASE_SECONDS", 60)
         ),
     )

@@ -34,7 +34,9 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     ai_enable_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     total_enable_review: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    analyze_competitor_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    analyze_competitor_flag: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -45,11 +47,24 @@ class Company(Base):
         nullable=False,
     )
 
-    users: Mapped[list["User"]] = relationship(back_populates="company", cascade="all, delete-orphan")
-    locations: Mapped[list["Location"]] = relationship(back_populates="company", cascade="all, delete-orphan")
-    competitors: Mapped[list["Competitor"]] = relationship(back_populates="company", cascade="all, delete-orphan")
-    api_clients: Mapped[list["ApiClient"]] = relationship(back_populates="company", cascade="all, delete-orphan")
-    worklist_sync_states: Mapped[list["WorklistSyncState"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    users: Mapped[list["User"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
+    locations: Mapped[list["Location"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
+    competitors: Mapped[list["Competitor"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
+    api_clients: Mapped[list["ApiClient"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
+    worklist_sync_states: Mapped[list["WorklistSyncState"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
+    crawl_batches: Mapped[list["CrawlBatch"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
 
 
 class User(Base):
@@ -60,7 +75,9 @@ class User(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255))
@@ -132,6 +149,113 @@ class WorklistSyncState(Base):
     company: Mapped[Company] = relationship(back_populates="worklist_sync_states")
 
 
+class CrawlBatch(Base):
+    """Tenant-bound request that groups durable crawl jobs."""
+
+    __tablename__ = "crawl_batches"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id", "idempotency_key", name="uq_crawl_batches_company_idempotency"
+        ),
+        Index("idx_crawl_batches_company_created", "company_id", "created_at"),
+        Index("idx_crawl_batches_public_id", "public_id", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    requested_by_client_id: Mapped[int] = mapped_column(
+        ForeignKey("api_clients.id", ondelete="RESTRICT"), nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    slot: Mapped[str | None] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(
+        String(30), default="queued", server_default="queued", nullable=False
+    )
+    analyze_after_crawl: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    company: Mapped[Company] = relationship(back_populates="crawl_batches")
+    jobs: Mapped[list["CrawlJob"]] = relationship(
+        back_populates="batch", cascade="all, delete-orphan"
+    )
+
+
+class CrawlJob(Base):
+    """One location crawl claimed by a background worker with a recoverable lease."""
+
+    __tablename__ = "crawl_jobs"
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id", "location_id", name="uq_crawl_jobs_batch_location"
+        ),
+        Index("idx_crawl_jobs_claim", "status", "available_at", "lease_expires_at"),
+        Index("idx_crawl_jobs_company", "company_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    batch_id: Mapped[int] = mapped_column(
+        ForeignKey("crawl_batches.id", ondelete="CASCADE"), nullable=False
+    )
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    location_id: Mapped[int] = mapped_column(
+        ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
+    )
+    onebox_location_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(30), default="queued", server_default="queued", nullable=False
+    )
+    source_snapshot: Mapped[str] = mapped_column(String(50), nullable=False)
+    target_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    max_attempts: Mapped[int] = mapped_column(
+        Integer, default=3, server_default="3", nullable=False
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    locked_by: Mapped[str | None] = mapped_column(String(120))
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_json: Mapped[dict] = mapped_column(
+        JsonType, default=dict, server_default=text("'{}'"), nullable=False
+    )
+    last_error_code: Mapped[str | None] = mapped_column(String(80))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    batch: Mapped[CrawlBatch] = relationship(back_populates="jobs")
+
+
 class Location(Base):
     __tablename__ = "locations"
     __table_args__ = (
@@ -143,7 +267,9 @@ class Location(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
     hospital_name: Mapped[str] = mapped_column(String(150), nullable=False)
     branch_name: Mapped[str] = mapped_column(String(150), nullable=False)
     city: Mapped[str | None] = mapped_column(String(100))
@@ -200,7 +326,9 @@ class Review(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
     location_id: Mapped[int] = mapped_column(
         ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
     )
@@ -225,9 +353,7 @@ class Review(Base):
     )
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw_payload: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
-    review_hash: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False
-    )
+    review_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -281,9 +407,7 @@ class ReviewAnalysis(Base):
     )
     model_name: Mapped[str | None] = mapped_column(String(100))
     prompt_version: Mapped[str | None] = mapped_column(String(50))
-    raw_response: Mapped[dict] = mapped_column(
-        JsonType, default=dict, nullable=False
-    )
+    raw_response: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -300,7 +424,9 @@ class FetchLog(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
     location_id: Mapped[int] = mapped_column(
         ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
     )
@@ -308,9 +434,7 @@ class FetchLog(Base):
     status: Mapped[str | None] = mapped_column(String(50))
     total_fetched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_inserted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    total_duplicate: Mapped[int] = mapped_column(
-        Integer, default=0, nullable=False
-    )
+    total_duplicate: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[dict] = mapped_column(
@@ -329,7 +453,10 @@ class Competitor(Base):
     __tablename__ = "competitors"
     __table_args__ = (
         UniqueConstraint(
-            "source", "external_place_id", "company_id", name="uq_competitors_source_place_company"
+            "source",
+            "external_place_id",
+            "company_id",
+            name="uq_competitors_source_place_company",
         ),
         Index("idx_competitors_company_id", "company_id"),
         Index("idx_competitors_active", "is_active"),
@@ -411,9 +538,7 @@ class CompetitorReview(Base):
     )
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw_payload: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
-    review_hash: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False
-    )
+    review_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

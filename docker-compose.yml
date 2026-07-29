@@ -22,3 +22,24 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+
+  crawl-worker:
+    image: ghcr.io/sayyidtrq/herminacrawler:latest
+    container_name: hermina-crawl-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SKIP_MIGRATIONS: "true"
+      SELENIUM_HEADLESS: "true"
+      SELENIUM_USER_DATA_DIR: /app/.selenium-profile
+    command: ["python", "-m", "scripts.run_crawl_worker"]
+    volumes:
+      - selenium-profile:/app/.selenium-profile
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  selenium-profile:

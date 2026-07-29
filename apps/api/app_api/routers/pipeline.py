@@ -70,7 +70,12 @@ def run_location_pipeline(payload: LocationPipelineRequest, current_user: User =
         if payload.dry_run:
             fetch_result = FetchService(company_id=current_user.company_id).dry_run_location(payload.location_id)
         elif source in {"selenium", "selenium_google_maps"}:
-            fetch_result = SeleniumFetchService().fetch_location(
+            # Keep the Selenium path tenant-scoped just like the normal fetch
+            # service. Without this company_id, a guessed location_id could
+            # bypass the ownership check inside LocationService.
+            fetch_result = SeleniumFetchService(
+                company_id=current_user.company_id
+            ).fetch_location(
                 payload.location_id,
                 target=payload.target_review_count,
             )

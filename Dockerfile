@@ -5,9 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# curl is required by the docker-compose healthcheck
+# curl is required by the docker-compose healthcheck. Chromium and its
+# distribution-matched driver keep Selenium independent from runtime downloads.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
+        chromium \
+        chromium-driver \
         curl \
     && rm -rf /var/lib/apt/lists/*
 

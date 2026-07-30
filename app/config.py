@@ -72,6 +72,12 @@ class Settings:
     # Default is for tests that build Settings directly; get_settings() still
     # refuses to boot outside local without a real INTEGRATION_CURSOR_SECRET.
     integration_cursor_secret: str = LOCAL_CURSOR_SECRET_FALLBACK
+    # Apify source (REVIEW_SOURCE_MODE=apify). Defaulted so tests that build
+    # Settings directly keep working without passing these.
+    apify_api_token: str | None = None
+    apify_actor_id: str = "compass~google-maps-reviews-scraper"
+    apify_base_url: str = "https://api.apify.com/v2"
+    apify_timeout_seconds: int = 300
 
     def ensure_export_dir(self) -> Path:
         self.export_dir.mkdir(parents=True, exist_ok=True)
@@ -87,10 +93,11 @@ def get_settings() -> Settings:
         "google_business_profile",
         "third_party",
         "selenium",
+        "apify",
     }:
         raise ValueError(
             "REVIEW_SOURCE_MODE must be mock, google_places, "
-            "google_business_profile, third_party, or selenium."
+            "google_business_profile, third_party, selenium, or apify."
         )
 
     database_url = os.getenv("DATABASE_URL", "").strip()
@@ -172,4 +179,12 @@ def get_settings() -> Settings:
         page_size=_as_int("PAGE_SIZE", 20),
         show_raw_payload=_as_bool("SHOW_RAW_PAYLOAD", False),
         integration_cursor_secret=integration_cursor_secret,
+        apify_api_token=os.getenv("APIFY_API_TOKEN") or None,
+        apify_actor_id=os.getenv(
+            "APIFY_ACTOR_ID", "compass~google-maps-reviews-scraper"
+        ).strip(),
+        apify_base_url=os.getenv(
+            "APIFY_BASE_URL", "https://api.apify.com/v2"
+        ).strip(),
+        apify_timeout_seconds=_as_int("APIFY_TIMEOUT_SECONDS", 300),
     )

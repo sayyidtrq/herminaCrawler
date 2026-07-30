@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings, get_settings
+from app.integrations.apify_client import ApifyReviewClient
 from app.integrations.google_places_client import GooglePlacesClient
 from app.integrations.mock_review_client import MockReviewClient
 from app.integrations.review_source_client import (
@@ -54,6 +55,8 @@ class FetchService:
             return GooglePlacesClient(self.settings)
         if self.settings.review_source_mode == "selenium":
             return SeleniumGoogleMapsReviewClient(self.settings)
+        if self.settings.review_source_mode == "apify":
+            return ApifyReviewClient(self.settings)
         if self.settings.review_source_mode == "google_business_profile":
             return UnsupportedReviewClient(
                 "Google Business Profile integration is not implemented yet."
@@ -68,7 +71,9 @@ class FetchService:
         for attempt in range(attempts):
             try:
                 limit = self.settings.fetch_limit_per_location
-                if self.settings.review_source_mode == "selenium":
+                # Selenium & Apify sama-sama bulk review scraper: pakai target
+                # per-lokasi (di-clamp kuota company), bukan limit global kecil.
+                if self.settings.review_source_mode in {"selenium", "apify"}:
                     limit = location.target_review_count
                     if self.company_id is not None:
                         limit = EntitlementService(

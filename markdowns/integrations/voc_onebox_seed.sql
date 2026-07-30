@@ -1,0 +1,12 @@
+-- =====================================================================
+-- ⚠️ DEPRECATED — JANGAN PAKAI FILE INI.
+--
+-- Ini draf awal (tebakan schema) yang sudah DIGANTIKAN oleh script asli tim
+-- yang lebih lengkap & sudah teruji:
+--
+--   seed/voc_setup_all.sql   -- master data + menu (Reference, Category, Location, Connection, Menu, Permission)
+--   seed/voc_dev_user.sql    -- akun dev buat akses Media Monitoring + menu VoC
+--   seed/voc_rollback.sql    -- undo setup (dev/lokal saja)
+--
+-- Pakai yang di folder seed/. File ini disimpan hanya sebagai penanda.
+-- =====================================================================

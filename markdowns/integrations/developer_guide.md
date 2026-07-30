@@ -40,7 +40,7 @@ Path yang lu buka di WSL itu **monorepo/workspace**, bukan aplikasi:
 │   ├── app/
 │   │   ├── controllers/             ← Controllers (flat + subfolder per namespace)
 │   │   │   ├── ControllerBase.php   ← base class semua controller
-│   │   │   ├── api/                 ← namespace Api\
+│   │   │   ├── api/                 ← namespace Api\   
 │   │   │   ├── report/              ← namespace Reports\
 │   │   │   ├── dashboard/           ← namespace Dashboards\
 │   │   │   └── helpdesk/            ← namespace helpdesk\

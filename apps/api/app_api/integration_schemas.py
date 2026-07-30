@@ -134,3 +134,10 @@ class IntegrationErrorBody(_Base):
 
 class IntegrationErrorResponse(_Base):
     error: IntegrationErrorBody
+
+class ServiceIdentityResponse(_Base):
+    """Identity returned by whoami; safe for OneBox preflight validation."""
+
+    company_id: int
+    company_name: str
+    scopes: list[str]

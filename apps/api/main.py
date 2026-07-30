@@ -19,6 +19,7 @@ from apps.api.app_api.routers import (
     fetch_logs,
     health,
     integration_reviews,
+    integration_crawl_jobs,
     locations,
     pipeline,
     reviews,
@@ -39,9 +40,7 @@ def _integration_error(request: Request, status_code: int, code: str, message: s
     )
     return JSONResponse(
         status_code=status_code,
-        content={
-            "error": {"code": code, "message": message, "request_id": request_id}
-        },
+        content={"error": {"code": code, "message": message, "request_id": request_id}},
     )
 
 
@@ -123,6 +122,7 @@ def create_app() -> FastAPI:
     app.include_router(pipeline.router, prefix="/api")
     app.include_router(fetch_logs.router, prefix="/api")
     app.include_router(integration_reviews.router, prefix="/api")
+    app.include_router(integration_crawl_jobs.router, prefix="/api")
     _drop_advertised_422_from_integration_paths(app)
     return app
 

@@ -271,7 +271,7 @@ def test_endpoint_is_published_in_openapi(client):
     # 422 is never returned here (validation_error_handler remaps it to 400), so it
     # must not be advertised either.
     assert "422" not in operation["responses"]
-    assert {"200", "400", "401", "403", "404", "503"} <= set(operation["responses"])
+    assert {"200", "400", "401", "403", "404"} <= set(operation["responses"])
 
 
 def test_openapi_still_advertises_422_for_fe_routes(client):
@@ -530,12 +530,12 @@ def test_another_tenants_location_is_404(client, seeded):
 # --------------------------------------------------------------------------- #
 
 
-def test_endpoint_is_closed_until_cs03_wires_service_auth():
+def test_endpoint_requires_service_token():
     """No override: the route must refuse, never fall open."""
     unguarded = TestClient(create_app())
     response = unguarded.get("/api/integration/v1/reviews")
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "SERVICE_AUTH_NOT_READY"
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "INVALID_SERVICE_TOKEN"
 
 
 def test_missing_scope_is_403(session_factory, seeded):

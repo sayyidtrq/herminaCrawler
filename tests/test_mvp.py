@@ -139,11 +139,17 @@ def test_analysis_is_structured_and_rerun_is_append_only(
     FetchService(
         company_id=company_id, session_factory=session_factory, settings=settings
     ).fetch_location(location.id)
+    mock_client = MockGeminiClient()
+    mock_client.last_usage = {
+        "prompt_tokens": 5,
+        "completion_tokens": 2,
+        "total_tokens": 7,
+    }
     analysis = AnalysisService(
         company_id=company_id,
         session_factory=session_factory,
         settings=settings,
-        client=MockGeminiClient(),
+        client=mock_client,
     )
 
     initial = analysis.analyze_pending()
@@ -151,7 +157,14 @@ def test_analysis_is_structured_and_rerun_is_append_only(
 
     assert initial["success"] == 10
     assert initial["failed"] == 0
+    assert initial["tokens_used"] == 70
+    assert initial["token_usage"] == {
+        "prompt_tokens": 50,
+        "completion_tokens": 20,
+        "total_tokens": 70,
+    }
     assert rerun["success"] == 1
+    assert rerun["tokens_used"] == 7
     with session_factory() as session:
         assert session.scalar(select(func.count(ReviewAnalysis.id))) == 11
         assert (

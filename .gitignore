@@ -16,3 +16,6 @@ herminaCrawler-fe
 package-lock.json
 apps.md
 information.md
+outputs
+.obsidian/
+

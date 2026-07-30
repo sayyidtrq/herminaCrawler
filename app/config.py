@@ -14,6 +14,10 @@ load_dotenv(BASE_DIR / ".env")
 # Only ever reachable when APP_ENV=local; get_settings refuses to start without a
 # real INTEGRATION_CURSOR_SECRET anywhere else.
 LOCAL_CURSOR_SECRET_FALLBACK = "local-only-cursor-secret-never-deploy-this"
+LOCAL_JWT_SECRET_FALLBACK = "local-only-jwt-secret-never-deploy-this"
+LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK = (
+    "local-only-service-token-pepper-never-deploy-this"
+)
 
 
 def _as_int(name: str, default: int) -> int:
@@ -24,6 +28,16 @@ def _as_int(name: str, default: int) -> int:
         return int(value)
     except ValueError as exc:
         raise ValueError(f"{name} must be an integer.") from exc
+
+
+def _as_optional_int(name: str) -> int | None:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer when set.") from exc
 
 
 def _as_bool(name: str, default: bool) -> bool:
@@ -72,12 +86,21 @@ class Settings:
     # Default is for tests that build Settings directly; get_settings() still
     # refuses to boot outside local without a real INTEGRATION_CURSOR_SECRET.
     integration_cursor_secret: str = LOCAL_CURSOR_SECRET_FALLBACK
-    # Apify source (REVIEW_SOURCE_MODE=apify). Defaulted so tests that build
-    # Settings directly keep working without passing these.
-    apify_api_token: str | None = None
-    apify_actor_id: str = "compass~google-maps-reviews-scraper"
-    apify_base_url: str = "https://api.apify.com/v2"
-    apify_timeout_seconds: int = 300
+    jwt_secret_key: str = LOCAL_JWT_SECRET_FALLBACK
+    service_token_pepper: str = LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK
+    onebox_base_url: str | None = None
+    onebox_service_email: str | None = None
+    onebox_service_password: str | None = None
+    onebox_site_id: int | None = None
+    onebox_company_id: int | None = None
+    onebox_worklist_path: str = "/api/VocWorklist"
+    onebox_timeout_seconds: int = 30
+    onebox_max_retry: int = 3
+    onebox_cache_stale_after_seconds: int = 86400
+    crawl_worker_lease_seconds: int = 900
+    crawl_worker_max_attempts: int = 3
+    crawl_worker_poll_seconds: int = 5
+    crawl_worker_retry_base_seconds: int = 60
 
     def ensure_export_dir(self) -> Path:
         self.export_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +128,25 @@ def get_settings() -> Settings:
         raise ValueError("DATABASE_URL is required in .env.")
 
     app_env = os.getenv("APP_ENV", "local").strip()
+    jwt_secret_key = os.getenv("JWT_SECRET_KEY", "").strip()
+    service_token_pepper = os.getenv("SERVICE_TOKEN_PEPPER", "").strip()
+    if app_env.lower() not in {"local", "test"}:
+        missing = [
+            name
+            for name, value in (
+                ("JWT_SECRET_KEY", jwt_secret_key),
+                ("SERVICE_TOKEN_PEPPER", service_token_pepper),
+            )
+            if not value or value.startswith("change-me")
+        ]
+        if missing:
+            raise ValueError(
+                ", ".join(missing)
+                + " must be set to a unique secret outside local/test."
+            )
+    jwt_secret_key = jwt_secret_key or LOCAL_JWT_SECRET_FALLBACK
+    service_token_pepper = service_token_pepper or LOCAL_SERVICE_TOKEN_PEPPER_FALLBACK
+
     integration_cursor_secret = os.getenv("INTEGRATION_CURSOR_SECRET", "").strip()
     if not integration_cursor_secret:
         # This secret signs the pagination cursors. A shared or guessable value
@@ -148,43 +190,51 @@ def get_settings() -> Settings:
         google_places_language_code=os.getenv(
             "GOOGLE_PLACES_LANGUAGE_CODE", "id"
         ).strip(),
-        google_places_region_code=os.getenv(
-            "GOOGLE_PLACES_REGION_CODE", "ID"
+        google_places_region_code=os.getenv("GOOGLE_PLACES_REGION_CODE", "ID").strip(),
+        local_llm_base_url=os.getenv(
+            "LOCAL_LLM_BASE_URL", "http://192.168.1.115:11434/v1/"
         ).strip(),
-        local_llm_base_url=os.getenv("LOCAL_LLM_BASE_URL", "http://192.168.1.115:11434/v1/").strip(),
         local_llm_api_key=os.getenv("LOCAL_LLM_API_KEY", "ollama") or None,
         local_llm_model=os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b").strip(),
         fetch_limit_per_location=_as_int("FETCH_LIMIT_PER_LOCATION", 50),
         fetch_timeout_seconds=_as_int("FETCH_TIMEOUT_SECONDS", 30),
         fetch_max_retry=_as_int("FETCH_MAX_RETRY", 3),
         selenium_headless=_as_bool("SELENIUM_HEADLESS", False),
-        selenium_default_target_reviews=_as_int(
-            "SELENIUM_DEFAULT_TARGET_REVIEWS", 100
-        ),
-        selenium_max_target_reviews=_as_int(
-            "SELENIUM_MAX_TARGET_REVIEWS", 300
-        ),
+        selenium_default_target_reviews=_as_int("SELENIUM_DEFAULT_TARGET_REVIEWS", 100),
+        selenium_max_target_reviews=_as_int("SELENIUM_MAX_TARGET_REVIEWS", 300),
         selenium_scroll_delay_seconds=max(
             2, _as_int("SELENIUM_SCROLL_DELAY_SECONDS", 2)
         ),
         selenium_max_scroll_attempts=min(
             100, max(1, _as_int("SELENIUM_MAX_SCROLL_ATTEMPTS", 100))
         ),
-        selenium_wait_timeout_seconds=_as_int(
-            "SELENIUM_WAIT_TIMEOUT_SECONDS", 20
-        ),
+        selenium_wait_timeout_seconds=_as_int("SELENIUM_WAIT_TIMEOUT_SECONDS", 20),
         selenium_user_data_dir=selenium_user_data_dir,
         analysis_batch_size=_as_int("ANALYSIS_BATCH_SIZE", 20),
         prompt_version=os.getenv("PROMPT_VERSION", "v1").strip(),
         page_size=_as_int("PAGE_SIZE", 20),
         show_raw_payload=_as_bool("SHOW_RAW_PAYLOAD", False),
         integration_cursor_secret=integration_cursor_secret,
-        apify_api_token=os.getenv("APIFY_API_TOKEN") or None,
-        apify_actor_id=os.getenv(
-            "APIFY_ACTOR_ID", "compass~google-maps-reviews-scraper"
-        ).strip(),
-        apify_base_url=os.getenv(
-            "APIFY_BASE_URL", "https://api.apify.com/v2"
-        ).strip(),
-        apify_timeout_seconds=_as_int("APIFY_TIMEOUT_SECONDS", 300),
+        jwt_secret_key=jwt_secret_key,
+        service_token_pepper=service_token_pepper,
+        onebox_base_url=os.getenv("ONEBOX_BASE_URL") or None,
+        onebox_service_email=os.getenv("ONEBOX_SVC_EMAIL") or None,
+        onebox_service_password=os.getenv("ONEBOX_SVC_PASSWORD") or None,
+        onebox_site_id=_as_optional_int("ONEBOX_SITE_ID"),
+        onebox_company_id=_as_optional_int("ONEBOX_COMPANY_ID"),
+        onebox_worklist_path=(
+            os.getenv("ONEBOX_WORKLIST_PATH", "/api/VocWorklist").strip()
+            or "/api/VocWorklist"
+        ),
+        onebox_timeout_seconds=max(1, _as_int("ONEBOX_TIMEOUT_SECONDS", 30)),
+        onebox_max_retry=max(0, _as_int("ONEBOX_MAX_RETRY", 3)),
+        onebox_cache_stale_after_seconds=max(
+            0, _as_int("ONEBOX_WORKLIST_CACHE_STALE_AFTER_SECONDS", 86400)
+        ),
+        crawl_worker_lease_seconds=max(60, _as_int("CRAWL_WORKER_LEASE_SECONDS", 900)),
+        crawl_worker_max_attempts=max(1, _as_int("CRAWL_WORKER_MAX_ATTEMPTS", 3)),
+        crawl_worker_poll_seconds=max(1, _as_int("CRAWL_WORKER_POLL_SECONDS", 5)),
+        crawl_worker_retry_base_seconds=max(
+            1, _as_int("CRAWL_WORKER_RETRY_BASE_SECONDS", 60)
+        ),
     )

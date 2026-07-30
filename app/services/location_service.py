@@ -81,13 +81,15 @@ class LocationService:
                     "A location with this source and external place ID already exists."
                 ) from exc
 
-    def get_all_locations(self, active_only: bool = False) -> list[Location]:
+    def get_all_locations(self, active_only: bool = False, crawl_enabled_only: bool = False) -> list[Location]:
         with self.session_factory() as session:
             statement = select(Location).order_by(Location.id)
             if self.company_id is not None:
                 statement = statement.where(Location.company_id == self.company_id)
             if active_only:
                 statement = statement.where(Location.is_active.is_(True))
+            if crawl_enabled_only:
+                statement = statement.where(Location.crawl_enabled.is_(True))
             return list(session.scalars(statement))
 
     def get_location(self, location_id: int) -> Location | None:

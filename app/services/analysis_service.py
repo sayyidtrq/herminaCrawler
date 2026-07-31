@@ -14,6 +14,7 @@ from app.integrations.local_llm_client import LocalLLMClient
 
 
 logger = logging.getLogger(__name__)
+RATING_FALLBACK_MODEL = "rating-fallback-v1"
 ALLOWED_SENTIMENTS = {"positive", "neutral", "negative", "mixed", "unknown"}
 ALLOWED_URGENCIES = {"low", "medium", "high", "critical", "unknown"}
 ALLOWED_CATEGORIES = {
@@ -102,6 +103,7 @@ class AnalysisService:
             "success": 0,
             "failed": 0,
             "skipped_empty": 0,
+            "rating_fallback": 0,
             "sentiments": {
                 "positive": 0,
                 "neutral": 0,
@@ -121,14 +123,17 @@ class AnalysisService:
         for start in range(0, len(reviews), batch_size):
             for review in reviews[start : start + batch_size]:
                 if not review["review_text"].strip():
-                    result["failed"] += 1
-                    result["skipped_empty"] += 1
-                    result["errors"].append(
-                        {
-                            "review_id": review["id"],
-                            "error": "Review text is empty.",
-                        }
+                    raw_result = self._rating_only_result(review.get("rating"))
+                    cleaned = self._validate_result(raw_result)
+                    self._store_analysis(
+                        review["id"],
+                        cleaned,
+                        raw_result,
+                        model_name=RATING_FALLBACK_MODEL,
                     )
+                    result["success"] += 1
+                    result["rating_fallback"] += 1
+                    result["sentiments"][cleaned["sentiment"]] += 1
                     continue
                 try:
                     raw_result = self.client.analyze_review(review)
@@ -148,7 +153,13 @@ class AnalysisService:
                     logger.exception("Analysis failed for review %s", review["id"])
         return result
 
-    def _store_analysis(self, review_id: int, cleaned: dict, raw_result: dict) -> None:
+    def _store_analysis(
+        self,
+        review_id: int,
+        cleaned: dict,
+        raw_result: dict,
+        model_name: str | None = None,
+    ) -> None:
         with self.session_factory() as session:
             statement = select(Review).where(Review.id == review_id)
             if self.company_id is not None:
@@ -175,7 +186,7 @@ class AnalysisService:
                     keywords=cleaned["keywords"],
                     is_potential_viral=cleaned["is_potential_viral"],
                     is_patient_safety_issue=cleaned["is_patient_safety_issue"],
-                    model_name=self.client.model_name,
+                    model_name=model_name or self.client.model_name,
                     prompt_version=self.settings.prompt_version,
                     raw_response=raw_result,
                 )
@@ -198,6 +209,49 @@ class AnalysisService:
                 else datetime.now(timezone.utc)
             )
             session.commit()
+
+    @staticmethod
+    def _rating_only_result(rating: int | None) -> dict:
+        if rating is None:
+            sentiment = "unknown"
+            score = 0.0
+            urgency = "unknown"
+            summary = "Reviewer tidak menulis komentar dan rating tidak tersedia."
+            action = "Tandai sebagai masukan tanpa konteks dan pantau pola serupa."
+        elif rating <= 2:
+            sentiment = "negative"
+            score = 0.85
+            urgency = "medium"
+            summary = f"Reviewer memberikan rating {rating}/5 tanpa komentar tertulis."
+            action = (
+                "Tindak lanjuti rating rendah bila identitas reviewer tersedia dan "
+                "pantau pola serupa pada lokasi ini."
+            )
+        elif rating == 3:
+            sentiment = "neutral"
+            score = 0.75
+            urgency = "low"
+            summary = "Reviewer memberikan rating 3/5 tanpa komentar tertulis."
+            action = "Pantau pola rating dan kumpulkan konteks tambahan bila tersedia."
+        else:
+            sentiment = "positive"
+            score = 0.85
+            urgency = "low"
+            summary = f"Reviewer memberikan rating {rating}/5 tanpa komentar tertulis."
+            action = "Pertahankan mutu layanan dan pantau konsistensi rating."
+
+        return {
+            "sentiment": sentiment,
+            "sentiment_score": score,
+            "issue_category": "other",
+            "urgency": urgency,
+            "summary": summary,
+            "recommended_action": action,
+            "keywords": [],
+            "is_potential_viral": False,
+            "is_patient_safety_issue": False,
+            "analysis_source": RATING_FALLBACK_MODEL,
+        }
 
     @staticmethod
     def _review_to_dict(review: Review) -> dict:

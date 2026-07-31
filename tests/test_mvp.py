@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
+
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import Settings
 from app.db.base import Base
 from app.db.models import Company, FetchLog, Review, ReviewAnalysis
+from app.integrations.local_llm_client import LocalLLMClient
 from app.integrations.mock_gemini_client import MockGeminiClient
 from app.services.analysis_service import AnalysisService
 from app.services.export_service import ExportService
@@ -15,6 +19,7 @@ from app.services.fetch_service import FetchService
 from app.services.location_service import LocationService
 from app.services.summary_service import SummaryService
 from app.utils.hashing import generate_review_hash
+from apps.api.app_api.schemas import AnalysisPendingResponse
 
 
 @pytest.fixture()
@@ -175,6 +180,91 @@ def test_analysis_is_structured_and_rerun_is_append_only(
             )
             == 2
         )
+
+
+def test_rating_only_review_uses_deterministic_fallback(
+    session_factory, settings, company_id
+):
+    location = add_location(session_factory, company_id)
+    with session_factory() as session:
+        session.add(
+            Review(
+                company_id=company_id,
+                location_id=location.id,
+                source="google_maps",
+                external_review_id="rating-only-1",
+                review_hash="rating-only-hash-1",
+                reviewer_name="Anonymous",
+                rating=1,
+                review_text="",
+            )
+        )
+        session.commit()
+
+    result = AnalysisService(
+        company_id=company_id,
+        session_factory=session_factory,
+        settings=settings,
+        client=MockGeminiClient(),
+    ).analyze_pending()
+
+    assert result["success"] == 1
+    assert result["failed"] == 0
+    assert result["skipped_empty"] == 0
+    assert result["rating_fallback"] == 1
+    assert result["tokens_used"] == 0
+    response = AnalysisPendingResponse.model_validate(result).model_dump()
+    assert response["rating_fallback"] == 1
+    assert response["tokens_used"] == 0
+    assert response["token_usage"]["total_tokens"] == 0
+    with session_factory() as session:
+        analysis = session.scalar(select(ReviewAnalysis))
+        assert analysis.sentiment == "negative"
+        assert analysis.urgency == "medium"
+        assert analysis.issue_category == "other"
+        assert analysis.model_name == "rating-fallback-v1"
+        assert analysis.is_patient_safety_issue is False
+        assert "tanpa komentar tertulis" in analysis.summary
+
+
+def test_local_llm_normalizes_invalid_category_and_boolean(settings):
+    content = json.dumps(
+        {
+            "sentiment": "negative",
+            "sentiment_score": 0.8,
+            "issue_category": "staff_service",
+            "urgency": "medium",
+            "summary": "Ringkasan.",
+            "recommended_action": "Tindak lanjuti.",
+            "keywords": ["staf"],
+            "is_potential_viral": "low",
+            "is_patient_safety_issue": "false",
+        }
+    )
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            prompt_tokens=10, completion_tokens=5, total_tokens=15
+        ),
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+    )
+    sdk = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=lambda **_: response)
+        )
+    )
+
+    result = LocalLLMClient(settings, sdk_client=sdk).analyze_review(
+        {
+            "rating": 2,
+            "reviewer_name": "Anonymous",
+            "review_time": None,
+            "review_text": "Pelayanan perlu diperbaiki.",
+        }
+    )
+
+    assert result["issue_category"] == "staff_communication"
+    assert result["is_potential_viral"] is False
+    assert result["is_patient_safety_issue"] is False
 
 
 def test_summary_and_exports(session_factory, settings, company_id):

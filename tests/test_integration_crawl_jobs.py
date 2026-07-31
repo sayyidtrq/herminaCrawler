@@ -114,12 +114,18 @@ def make_client(session_factory, current_principal: ServicePrincipal) -> TestCli
 
 
 def enqueue(
-    client: TestClient, location_id: int = 101, key: str = "169:2026-07-29:morning"
+    client: TestClient,
+    location_id: int = 101,
+    key: str = "169:2026-07-29:morning",
+    target_review_count: int | None = None,
 ):
+    target = {"onebox_location_id": location_id}
+    if target_review_count is not None:
+        target["target_review_count"] = target_review_count
     return client.post(
         "/api/integration/v1/crawl-jobs",
         headers={"Idempotency-Key": key},
-        json={"slot": "morning", "targets": [{"onebox_location_id": location_id}]},
+        json={"slot": "morning", "targets": [target]},
     )
 
 
@@ -133,6 +139,14 @@ def test_enqueue_is_non_blocking_and_idempotent(session_factory):
     assert first.json()["data"]["batch_id"] == second.json()["data"]["batch_id"]
     assert first.json()["data"]["status"] == "queued"
     assert first.json()["data"]["jobs"][0]["onebox_location_id"] == 101
+    assert first.json()["data"]["jobs"][0]["target_review_count"] == 2
+    assert first.json()["data"]["review_counts"] == {
+        "target": 2,
+        "fetched": 0,
+        "inserted": 0,
+        "duplicate": 0,
+        "failed": 0,
+    }
     with session_factory() as session:
         assert len(list(session.scalars(select(CrawlBatch)))) == 1
         assert len(list(session.scalars(select(CrawlJob)))) == 1
@@ -145,6 +159,32 @@ def test_idempotency_key_rejects_different_payload(session_factory):
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
 
+
+def test_target_review_count_override_is_queued_and_idempotent(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    key = "169:2026-07-29:manual-10"
+
+    first = enqueue(client, key=key, target_review_count=10)
+    second = enqueue(client, key=key, target_review_count=10)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert first.json()["data"]["batch_id"] == second.json()["data"]["batch_id"]
+    assert first.json()["data"]["jobs"][0]["target_review_count"] == 10
+    with session_factory() as session:
+        job = session.scalar(select(CrawlJob))
+        assert job.target_review_count == 10
+
+
+def test_idempotency_rejects_different_target_review_count(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    key = "169:2026-07-29:manual-target-conflict"
+
+    assert enqueue(client, key=key, target_review_count=10).status_code == 202
+    response = enqueue(client, key=key, target_review_count=20)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
 
 def test_tenant_cannot_enqueue_or_read_another_tenants_target(session_factory):
     tenant_a = make_client(session_factory, principal(1, 1))
@@ -202,3 +242,10 @@ def test_worker_claims_and_completes_job(session_factory):
     assert completed["jobs"][0]["status"] == "succeeded"
     assert completed["jobs"][0]["onebox_location_id"] == 101
     assert completed["jobs"][0]["result"]["total_inserted"] == 2
+    assert completed["review_counts"] == {
+        "target": 2,
+        "fetched": 2,
+        "inserted": 2,
+        "duplicate": 0,
+        "failed": 0,
+    }

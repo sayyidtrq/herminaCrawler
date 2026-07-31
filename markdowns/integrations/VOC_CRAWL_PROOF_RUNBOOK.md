@@ -26,13 +26,69 @@ AI sengaja tidak dijalankan otomatis oleh worker crawl. Pemisahan ini mengikuti 
 | Proses | Status | Bukti |
 |---|---|---|
 | Worklist OneBox -> Crawler | **[verified-dev]** | Sync pernah menghasilkan `status=synced` dan target masuk cache lokasi. |
-| X5 enqueue non-blocking | **[verified-local]** | `POST /api/integration/v1/crawl-jobs`, idempotency, tenant scope, durable queue, lease, retry, dan worker diuji otomatis. |
-| Runtime Chromium di image | **[verified-local]** | Chromium dan chromedriver dipaketkan di Dockerfile; unit test pencarian binary lulus. Build image Dev masih perlu dilakukan. |
-| X2 persistence + dedup | **[verified-local]** | Test Selenium persistence/dedup dan full test suite lulus. |
-| X3 analysis + token usage | **[verified-local]** | Analysis mengembalikan aggregate `tokens_used` dan breakdown provider usage. |
-| X4 service auth + delta | **[verified-local]** | Tenant binding, scope, cursor, dan delta contract diuji otomatis. |
-| X1 crawl Google real | **[blocked]** sampai proof Dev | Harus dijalankan pada satu target worklist di `ciptadra-svr`. |
-| Review -> Ticket -> eskalasi | **[blocked]** sampai proof Dev | Dilakukan setelah X1-X4 menghasilkan satu review baru. |
+| X5 enqueue non-blocking | **[verified-dev]** | Service token dengan scope crawl dapat enqueue batch, worker mengambil antrean, dan API tidak menunggu Selenium selesai. |
+| Runtime Chromium di image | **[verified-dev]** | Chromium/chromedriver tersedia; worker berjalan headed melalui Xvfb dan memakai volume profile Google yang persisten. |
+| X1 crawl Google real | **[verified-dev, partial target]** | Target 50 menghasilkan 40 review real, 0 gagal. Selisih 10 terjadi karena tidak ada kartu baru setelah 18 scroll. |
+| X2 persistence + dedup | **[verified-dev]** | 40 review terikat ke company/lokasi/place yang benar, 40 hash unik; rerun menghasilkan `inserted=0` dan `duplicate=40`. |
+| X3 analysis + token usage | **[in-progress-dev]** | `gemma3:1b` berhasil menganalisis satu review dengan 839 token. Batch penuh masih lambat karena eksekusi serial. |
+| X4 service auth + delta | **[verified-dev, analysis pending]** | Delta mengembalikan 40 review, `location_id=8`, `has_more=false`, dan checkpoint terisi. Pull ulang setelah X3 selesai masih wajib untuk membuktikan field analysis. |
+| Review -> Ticket -> eskalasi | **[blocked-by-X3/OneBox]** | Dilanjutkan setelah hasil analysis lengkap muncul pada delta dan consumer OneBox dijalankan. |
+
+### 2.1 Rekap proof Dev aktual - 31 Juli 2026
+
+| Item | Hasil |
+|---|---|
+| Target | RSU Hermina Depok |
+| Company / lokasi Crawler / lokasi OneBox | `3 / 8 / 656` |
+| Target review | 50 |
+| Fetched / inserted / failed | `40 / 40 / 0` |
+| Penyebab target tidak penuh | Tidak ada kartu review baru setelah 18 scroll |
+| Login Google | Diperlukan satu kali untuk bootstrap profile persisten |
+| Idempotency enqueue | Lulus; replay tidak membuat batch baru |
+| Dedup crawl | Lulus; rerun `fetched=40`, `inserted=0`, `duplicate=40` |
+| Delta sebelum analysis penuh | 40 item, final page, checkpoint tersedia |
+| Model analysis terpilih | `gemma3:1b` |
+| Bukti analysis minimum | 1 review sukses, total usage 839 token |
+
+Keputusan sementara: **PASS WITH LIMITATION** untuk X1, X2, X4 raw, dan X5.
+X3 belum boleh dinyatakan selesai sampai semua review target yang memiliki teks sudah
+memiliki analysis atau kegagalannya tercatat. G5 tetap menunggu ingestion dan workflow
+Ticket di OneBox.
+
+### 2.2 Kendala AI dan estimasi 50 review
+
+Kendala yang sudah ditemukan:
+
+- model lama `qwen2.5:7b` tidak tersedia pada Ollama tujuan;
+- `qwen3.5:9b` gagal dimuat, `qwen3:1.7b` mengembalikan JSON kosong, dan
+  `gemma3:4b` tidak selesai dalam waktu proof;
+- `gemma3:1b` menghasilkan response valid, tetapi inference berjalan di resource lokal
+  dan masih lambat;
+- implementasi `AnalysisService._analyze_items()` memanggil LLM **secara serial**.
+  `ANALYSIS_BATCH_SIZE=20` hanya membagi iterasi menjadi kelompok, bukan menjalankan
+  20 request secara paralel.
+
+Estimasi kapasitas sementara untuk `gemma3:1b`:
+
+| Komponen | Estimasi |
+|---|---:|
+| Warm inference per review | 30-90 detik |
+| 50 review, inference serial | 25-75 menit |
+| Cold start, tulis DB, validasi, dan kemungkinan retry | 5-15 menit |
+| **Estimasi operasional 50 review** | **30-90 menit** |
+| **Budget aman untuk jadwal/demo** | **maksimal 120 menit** |
+
+Angka tersebut adalah **estimasi provisional**, bukan SLA. Setelah batch selesai, catat
+`started_at`, `finished_at`, jumlah `success/failed/skipped`, dan hitung angka aktual:
+
+~~~text
+average_seconds_per_review = elapsed_seconds / attempted_reviews
+estimated_50_minutes = average_seconds_per_review * 50 / 60
+~~~
+
+Untuk demo, analysis sebaiknya diproses sebelum sesi dimulai. Optimasi berikutnya adalah
+worker analysis terpisah dengan concurrency kecil dan terukur, bukan menaikkan
+`ANALYSIS_BATCH_SIZE` karena konfigurasi itu saat ini tidak menambah paralelisme.
 
 ## 3. Contract X5 yang sudah tersedia
 

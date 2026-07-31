@@ -8,6 +8,29 @@
 
 Ini bukan membangun fitur baru. Sebagian besar kodenya sudah ada; yang belum ada adalah **bukti bahwa rantainya nyambung**.
 
+## 0. Update proof Dev - 31 Juli 2026
+
+Status ini menggantikan klaim lama yang masih menyebut crawl real sebagai blocker:
+
+- X1 lulus dengan limit: target 50, fetched/inserted 40, failed 0; scraper berhenti
+  setelah 18 scroll tanpa kartu baru.
+- X2 lulus: company `3`, lokasi Crawler `8`, lokasi OneBox `656`, place mapping benar,
+  dan seluruh 40 review memiliki hash unik.
+- Idempotency lulus dan rerun dedup menghasilkan `inserted=0`, `duplicate=40`.
+- X4 raw lulus: delta mengembalikan 40 review, final page, dan checkpoint cursor.
+- X5 lulus di Dev: enqueue non-blocking dan worker durable berjalan.
+- X3 parsial: `gemma3:1b` menghasilkan satu analysis valid dengan 839 token; batch penuh
+  belum selesai karena pemanggilan LLM masih serial.
+
+Jalur kritis terbaru adalah **X3 analysis -> X4 delta enriched -> ingestion dan Ticket
+OneBox**. Risiko Selenium sudah ditutup melalui profile Google persisten dan Chromium
+headed di Xvfb.
+
+Estimasi sementara analysis 50 review adalah **30-90 menit**, dengan budget aman
+**maksimal 120 menit**. Dasarnya 30-90 detik per review secara serial ditambah cold start,
+validasi, penyimpanan DB, dan retry. Angka ini provisional dan harus diganti dengan
+throughput aktual setelah batch selesai.
+
 ---
 
 ## 1. Peta status tiap tahap
@@ -16,9 +39,9 @@ Ini bukan membangun fitur baru. Sebagian besar kodenya sudah ada; yang belum ada
 |---|---|---|---|
 | 1 | Tambah lokasi di OneBox (tersimpan ke DB) | ✅ **[verified]** 28 Jul | OneBox |
 | 2 | Crawler menarik worklist dari OneBox | ✅ **[verified]** `fetched:1, upserted:1` | VoC |
-| 3 | **Crawl review Google untuk target itu** | ❓ **belum pernah dibuktikan** | **VoC** |
-| 4 | Review tersimpan + dianalisa AI di VoC | ⚠️ kode ada, belum diuji untuk target baru | VoC |
-| 5 | OneBox menarik review (delta) dari VoC | ⚠️ kode ada, **konfigurasi di dev belum benar** | OneBox |
+| 3 | **Crawl review Google untuk target itu** | **[verified-dev, partial target]** 40/50 fetched, 0 gagal | **VoC** |
+| 4 | Review tersimpan + dianalisa AI di VoC | **[in-progress-dev]** persistence/dedup lulus; batch AI serial masih berjalan | VoC |
+| 5 | OneBox menarik review (delta) dari VoC | **[verified-dev, analysis pending]** 40 review raw + checkpoint; ulangi setelah X3 | OneBox |
 | 6 | Review → Ticket + kategori + prioritas | ⚠️ kode ada **[verified di lokal]**, belum di dev | OneBox |
 | 7 | Tampil di Dashboard / Reviews | ✅ **[verified]** | OneBox |
 
@@ -84,13 +107,13 @@ Tidak ada koding langsung di `feature/voc` — branch itu hanya untuk merge. PR 
 
 | ID | Tugas | Selesai bila |
 |---|---|---|
-| **X1** | **Buktikan crawl 1 target** (`Hermina depok`, place id dari worklist) di server. Catat: butuh login Google atau tidak, berapa lama, berapa review didapat. | Ada review baru tersimpan untuk target itu, atau kegagalan terdokumentasi dengan sebabnya |
-| X2 | Pastikan review tersimpan dengan **`location_id` target hasil worklist** (bukan target lama) | Query DB menunjukkan review terikat ke lokasi yang benar |
-| X3 | Jalankan analisa AI untuk review baru; laporkan `tokens_used` | Tiap review punya sentimen, urgensi, kategori |
-| X4 | Pastikan `GET /api/integration/v1/reviews` mengembalikan review baru itu, cursor maju dengan benar | OneBox bisa menariknya secara delta |
-| X5 | Sediakan pemicu crawl yang bisa dipanggil dari luar (CLI/endpoint), **non-blocking** | OneBox bisa memicu tanpa menunggu Selenium |
+| **X1** | **Selesai** - crawl target Hermina Depok di server | 40 review real tersimpan; login Google satu kali melalui profile persisten |
+| X2 | **Selesai** - verifikasi persistence dan dedup | Mapping lokasi benar; 40 hash unik; rerun 40 duplikat dan 0 insert |
+| X3 | **Berjalan** - selesaikan analysis dan ukur throughput aktual | Satu review sukses/839 token; tunggu aggregate seluruh review |
+| X4 | **Parsial** - delta raw lulus, ulangi setelah X3 | 40 review dan checkpoint terbukti; field analysis belum lengkap |
+| X5 | **Selesai** - enqueue non-blocking dari service API | API, token scope, queue, dan worker terbukti di Dev |
 
-> X1 adalah **gerbang**. Kalau gagal, hentikan X2–X5 dan laporkan — arsitekturnya yang harus ditinjau, bukan dipaksakan.
+> Gerbang aktif sekarang adalah **X3**. Jangan ingest final ke OneBox sebelum X4 menunjukkan field analysis lengkap atau kegagalan per review sudah tercatat.
 
 ### Agen OneBox (Claude)
 

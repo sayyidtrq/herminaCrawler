@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         chromium \
         chromium-driver \
         curl \
+        xauth \
+        xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
@@ -27,7 +29,7 @@ COPY alembic.ini /app/alembic.ini
 COPY scripts /app/scripts
 COPY entrypoint.sh /app/entrypoint.sh
 
-RUN chmod +x /app/entrypoint.sh \
+RUN chmod +x /app/entrypoint.sh /app/scripts/run_crawl_worker.sh \
     && mkdir -p /app/exports
 
 EXPOSE 8000

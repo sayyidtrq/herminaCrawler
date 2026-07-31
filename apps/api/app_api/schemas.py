@@ -179,7 +179,10 @@ class AnalysisPendingResponse(_Base):
     success: int | None = None
     failed: int | None = None
     skipped_empty: int | None = None
+    rating_fallback: int | None = None
     sentiments: dict[str, int] | None = None
+    tokens_used: int | None = None
+    token_usage: dict[str, int] | None = None
     errors: list[Any] | None = None
 
 

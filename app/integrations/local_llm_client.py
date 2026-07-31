@@ -9,6 +9,59 @@ from app.config import Settings
 from app.integrations.gemini_client import GeminiClientBase, ReviewAnalysisResult
 
 
+ALLOWED_ISSUE_CATEGORIES = {
+    "doctor_service",
+    "nurse_service",
+    "administration",
+    "waiting_time",
+    "cleanliness",
+    "facility",
+    "parking",
+    "billing",
+    "pharmacy",
+    "emergency_room",
+    "inpatient",
+    "customer_service",
+    "booking_system",
+    "staff_communication",
+    "security",
+    "food",
+    "general_praise",
+    "other",
+}
+ISSUE_CATEGORY_ALIASES = {
+    "waiting_room": "waiting_time",
+    "staff_service": "staff_communication",
+    "patient_experience": "other",
+}
+
+
+def _coerce_model_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y"}:
+            return True
+        if normalized in {"false", "0", "no", "n"}:
+            return False
+    return False
+
+
+def _normalize_model_output(parsed: dict) -> dict:
+    normalized = dict(parsed)
+    category = str(normalized.get("issue_category") or "other").strip().lower()
+    category = ISSUE_CATEGORY_ALIASES.get(category, category)
+    normalized["issue_category"] = (
+        category if category in ALLOWED_ISSUE_CATEGORIES else "other"
+    )
+    for field in ("is_potential_viral", "is_patient_safety_issue"):
+        normalized[field] = _coerce_model_bool(normalized.get(field))
+    return normalized
+
+
 def _build_example_from_schema(schema: dict) -> dict:
     """Bangun contoh instance JSON (bukan schema) dari pydantic JSON schema,
     supaya kalau field di ReviewAnalysisResult berubah, contoh di prompt ikut update."""
@@ -116,6 +169,7 @@ class LocalLLMClient(GeminiClientBase):
         if "properties" in parsed and "sentiment" not in parsed:
             parsed = parsed["properties"]
 
+        parsed = _normalize_model_output(parsed)
         try:
             return ReviewAnalysisResult.model_validate(parsed).model_dump()
         except ValueError as exc:

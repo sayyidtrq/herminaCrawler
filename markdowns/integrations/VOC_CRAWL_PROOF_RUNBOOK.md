@@ -122,7 +122,106 @@ curl -fsS "$VOC_API/api/integration/v1/whoami" -H "Authorization: Bearer $VOC_SE
 
 Gate lulus bila `company_id=3` dan scopes berisi `reviews:read`, `crawl:enqueue`, serta `crawl:read`.
 
-## 7. X1 dan X5 - enqueue crawl real
+## 7. G0.5 - bootstrap profile Google untuk Selenium
+
+Task ini dilakukan **satu kali per volume/profile Selenium**, lalu diulang hanya ketika sesi
+Google habis, profile rusak, atau Google kembali menampilkan limited view. Login dilakukan
+di Chromium normal yang berjalan di `ciptadra-svr`, bukan di Chrome laptop dan bukan melalui
+WebDriver. Otomasi login Google sengaja tidak didukung.
+
+### 7.1 Hentikan worker selama setup
+
+Worker dihentikan agar retry job tidak habis sebelum profile siap:
+
+~~~bash
+cd ~/herminaCrawler
+docker compose stop crawl-worker
+docker volume inspect herminacrawler_selenium-profile
+docker run --rm \
+  -v herminacrawler_selenium-profile:/profile \
+  alpine sh -lc 'chown -R 1000:1000 /profile'
+~~~
+
+### 7.2 Jalankan browser setup di loopback server
+
+Browser setup memakai volume yang sama dengan mount
+`/app/.selenium-profile` pada worker. Port hanya bind ke `127.0.0.1` server
+dan tidak boleh diekspos ke LAN atau internet.
+
+~~~bash
+docker rm -f voc-chromium-profile-setup 2>/dev/null || true
+docker run -d \
+  --name voc-chromium-profile-setup \
+  --shm-size=1g \
+  --security-opt seccomp=unconfined \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=Asia/Jakarta \
+  -e CHROME_CLI="/config/.config/chromium https://www.google.com/maps" \
+  -p 127.0.0.1:3000:3000 \
+  -p 127.0.0.1:3001:3001 \
+  -v herminacrawler_selenium-profile:/config/.config/chromium \
+  lscr.io/linuxserver/chromium:version-b0ddd401
+
+docker ps --filter name=voc-chromium-profile-setup
+curl -fsSI http://127.0.0.1:3000/ | head
+~~~
+
+### 7.3 Login manual dari laptop
+
+Di terminal **baru pada laptop developer**, buat SSH tunnel dan biarkan terminal terbuka:
+
+~~~bash
+ssh -L 3000:127.0.0.1:3000 ubuntu@192.168.1.3
+~~~
+
+Kemudian buka `http://127.0.0.1:3000` pada browser laptop. Halaman tersebut adalah
+remote Chromium yang berjalan di server.
+
+Checklist manual:
+
+1. Login ke akun Google yang memang diizinkan untuk proof.
+2. Buka Google Maps dan cari target proof, misalnya `Hermina Depok`.
+3. Buka panel **Ulasan/Reviews** sampai kartu review terlihat.
+4. Tutup tab sensitif lain; jangan mengunggah file atau menyalin secret ke browser ini.
+5. Jangan mengirim password Google, cookie, atau screenshot token ke chat/evidence.
+
+### 7.4 Simpan profile dan hidupkan kembali worker
+
+Setelah daftar review terlihat:
+
+~~~bash
+docker stop voc-chromium-profile-setup
+
+# Chromium setup berjalan sebagai UID 1000. Samakan ownership sebelum setup,
+# dan hapus lock setelah setiap perpindahan antara browser setup dan worker.
+docker run --rm \
+  -v herminacrawler_selenium-profile:/profile \
+  alpine sh -lc 'chown -R 1000:1000 /profile && rm -f /profile/SingletonLock /profile/SingletonCookie /profile/SingletonSocket'
+
+docker rm voc-chromium-profile-setup
+
+# Google dapat memberi limited view pada mode headless walaupun cookie login valid.
+# Proof real dijalankan headed di virtual display Xvfb.
+grep '^SELENIUM_HEADLESS=false$' .env
+docker compose up -d --build --force-recreate crawl-worker
+docker compose ps
+docker compose logs --since=2m crawl-worker
+~~~
+
+Gate lulus bila:
+
+- setup container sudah dihapus;
+- `crawl-worker` berstatus running;
+- volume `herminacrawler_selenium-profile` tetap ada;
+- worker menjalankan `SELENIUM_HEADLESS=false` melalui Xvfb dan tidak mengalami error permission/profile lock;
+- crawl berikutnya tidak lagi berhenti pada `limited view`.
+
+> Catatan keamanan: profile berisi session cookie. Perlakukan volume sebagai secret,
+> batasi akses Docker host, jangan backup ke Git/object storage umum, dan hapus/revoke
+> session ketika proof selesai atau akun tidak lagi digunakan.
+
+## 8. X1 dan X5 - enqueue crawl real
 
 Gunakan target kecil agar proof terkendali. Nilai target aktual tetap berasal dari worklist Location.
 
@@ -159,7 +258,7 @@ Gate X1/X5:
 
 Jalankan POST yang sama dengan `Idempotency-Key` dan payload yang sama. Batch ID harus tetap sama dan job tidak boleh bertambah.
 
-## 8. X2 - persistence dan dedup
+## 9. X2 - persistence dan dedup
 
 Gunakan JWT user hanya untuk endpoint operasional lama selama belum tersedia read-only proof endpoint service. Jangan memasukkan token ke evidence.
 
@@ -178,7 +277,7 @@ Bukti X2:
 
 Jika mapping lokasi salah, hentikan ingestion OneBox.
 
-## 9. X3 - AI analysis
+## 10. X3 - AI analysis
 
 Tes konektivitas LLM dari container:
 
@@ -197,7 +296,7 @@ curl -fsS -X POST "$VOC_API/api/analysis/pending" \
 
 Gate lulus bila success lebih dari 0, `tokens_used` dan `token_usage` tercatat, serta review memiliki sentiment, urgency, issue_category, summary, dan recommended_action.
 
-## 10. X4 - delta pull
+## 11. X4 - delta pull
 
 ~~~bash
 export UPDATED_SINCE="<UTC-sebelum-crawl>"
@@ -208,7 +307,7 @@ curl -fsS "$VOC_API/api/integration/v1/reviews?limit=100&updated_since=$UPDATED_
 
 Gate lulus bila review X1 muncul dengan lokasi dan hasil analysis benar. Ikuti `next_cursor` ketika `has_more=true`; simpan `checkpoint_cursor` di OneBox hanya setelah seluruh page berhasil di-ingest.
 
-## 11. Handoff ke OneBox
+## 12. Handoff ke OneBox
 
 Claude/agen OneBox menjalankan receive pada Connection Dev:
 
@@ -225,7 +324,7 @@ Verifikasi di UI:
 5. Ticket dapat di-assign, diberi action note, diubah status, dan dieskalasi.
 6. Dashboard konsisten dengan jumlah data hasil proof.
 
-## 12. Pembagian dua agen
+## 13. Pembagian dua agen
 
 ### Codex - Crawler System
 
@@ -245,18 +344,74 @@ Verifikasi di UI:
 - membuktikan mapping Message/Ticket, Location, assignment, dan escalation;
 - menampilkan status batch pada Fetch Jobs tanpa menunggu Selenium di request web.
 
-## 13. Decision gates
+## 14. Decision gates
 
 | Gate | Lulus bila |
 |---|---|
-| G0 | API healthy, worker running, worklist synced. |
+| G0 | API healthy dan worklist synced. |
+| G0.5 | Profile Google tersimpan, setup browser dihapus, dan worker kembali running tanpa limited view. |
 | G1 | Enqueue memberi 202 dan worker mendapatkan review real. |
 | G2 | Location/place/hash benar dan rerun tidak duplikat. |
 | G3 | Analysis fields serta token usage terisi. |
 | G4 | Service token tenant benar dan delta berisi review proof. |
 | G5 | OneBox membuat Ticket yang dapat ditindaklanjuti. |
 
-## 14. Evidence packet
+## 15. Prosedur test service end-to-end
+
+Jalankan test berurutan. Jangan melewati gate yang gagal karena hasil tahap sesudahnya
+tidak dapat dianggap valid.
+
+| No. | Test | Aksi utama | Expected result | Evidence |
+|---|---|---|---|---|
+| T01 | Deployment | Build/recreate Compose dan cek migration | API healthy, worker running, Alembic head benar | metadata + status container |
+| T02 | Service auth | Panggil `whoami` dengan token proof | company 3 dan tiga scope benar | response redacted |
+| T03 | Tenant isolation | Gunakan target tenant lain/tidak terdaftar | request ditolak tanpa membocorkan data | status + error code |
+| T04 | Worklist | Jalankan `refresh_worklist` company 3 | target aktif masuk cache dengan OneBox Location ID | counter + identity redacted |
+| T05 | Profile Selenium | Selesaikan G0.5 | Google Maps menampilkan kartu review, worker memakai profile tanpa lock | status saja, tanpa cookie |
+| T06 | Enqueue | POST crawl job dengan idempotency key baru | HTTP 202 dalam waktu singkat dan ada `batch_id` | enqueue response |
+| T07 | Durable execution | Pantau batch dan restart worker sekali bila perlu | job tetap ada dan akhirnya terminal | batch history + log redacted |
+| T08 | Crawl nyata | Tunggu job target 50 | `succeeded`, fetched mendekati target; selisih harus dijelaskan | final counters |
+| T09 | Persistence | Query review hasil run | Location/place/hash benar dan jumlah DB bertambah | identity redacted |
+| T10 | Idempotency API | Ulang POST dengan key dan payload sama | batch ID sama, tidak ada job tambahan | kedua response |
+| T11 | Dedup crawler | Enqueue crawl baru untuk target sama | jumlah review stabil; inserted 0 atau duplicate bertambah | before/after counters |
+| T12 | AI analysis | Jalankan pending analysis | analysis fields dan token usage terisi | aggregate analysis |
+| T13 | Delta API | Pull contract v1 sejak sebelum crawl | review proof muncul dan cursor valid | payload redacted |
+| T14 | OneBox ingestion | Jalankan consumer receive | Message/Ticket terbentuk satu kali | ingest counters |
+| T15 | Workflow UI | Assign, beri tindak lanjut, ubah status, eskalasi | Ticket dapat dikelola end-to-end | screenshot redacted |
+
+### 15.1 Ringkasan hasil wajib
+
+Laporan proof minimal memuat:
+
+~~~text
+Environment:
+Git commit/image:
+Company ID / Site ID / OneBox Location ID:
+Batch ID:
+Target review: 50
+Fetched:
+Inserted:
+Duplicate:
+Failed:
+Final status:
+Google login required: yes/no
+Analysis success/failed:
+Delta returned:
+Ticket created:
+Idempotency verified: yes/no
+Dedup verified: yes/no
+Blocker/selisih:
+~~~
+
+Keputusan akhir:
+
+- **PASS**: T01-T15 lulus dan tidak ada pelanggaran tenant/mapping.
+- **PASS WITH LIMITATION**: rantai utama berhasil, tetapi fetched kurang dari 50 karena
+  jumlah review yang memang tersedia atau pembatasan yang sudah dibuktikan dan dicatat.
+- **FAIL**: review real tidak tersimpan, tenant isolation gagal, terjadi duplikasi,
+  cursor tidak konsisten, atau Ticket tidak dapat ditindaklanjuti.
+
+## 16. Evidence packet
 
 ~~~text
 00_run_metadata.txt
@@ -264,17 +419,18 @@ Verifikasi di UI:
 02_enqueue_response.json
 03_batch_final.json
 04_worker_log_redacted.txt
-05_review_identity_redacted.json
-06_analysis_summary.json
-07_whoami_redacted.json
-08_delta_redacted.json
-09_onebox_ingest_counters.txt
-10_ticket_redacted.png
+05_selenium_profile_status.txt
+06_review_identity_redacted.json
+07_analysis_summary.json
+08_whoami_redacted.json
+09_delta_redacted.json
+10_onebox_ingest_counters.txt
+11_ticket_redacted.png
 ~~~
 
 Jangan menyimpan password, raw token/JWT, Selenium cookies/profile, API key, cursor penuh, raw payload, atau full review text.
 
-## 15. Known limitations setelah proof
+## 17. Known limitations setelah proof
 
 - Scheduler tiga window masih pekerjaan terpisah; OneBox tetap control plane jadwal.
 - Baseline worker hanya satu concurrency untuk menjaga stabilitas Selenium.

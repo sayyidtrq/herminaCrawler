@@ -1,4 +1,4 @@
-﻿# VoC Crawler System - Pull Flow, Environment, Risk, and Deployment
+# VoC Crawler System - Pull Flow, Environment, Risk, and Deployment
 
 Dokumen ini menjelaskan flow pull data dari Crawler System ke OneBox, env, risiko, mitigasi, dan deployment backend.
 

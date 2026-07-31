@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdowns/integrations/implementation-plan-crawler-system/postman-api-guide-voc.md",
+                "file": "markdowns/decisions/BRAINSTORM-multi-tenant-voc.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "postman-api-guide-voc"
+              "title": "BRAINSTORM-multi-tenant-voc"
             }
           }
         ]
@@ -185,19 +185,28 @@
   },
   "active": "d70f97d92821c77e",
   "lastOpenFiles": [
-    "docx_qa",
-    "markdowns/integrations/VOC_STAKEHOLDER_OVERVIEW.docx",
-    "build_stakeholder_doc.py",
+    "markdowns/decisions/SPEC-multi-tenant-opsi-c.md",
+    "markdowns/decisions/SPEC-multi-tenant-opsi-c.md.tmp.35236.c64724d8c3f8",
+    "alembic/versions/__pycache__/20260729_0002_add_durable_crawl_queue.cpython-311.pyc",
+    "voc_x5_migration.db",
+    "tests/__pycache__/test_integration_crawl_jobs.cpython-311-pytest-8.3.5.pyc",
+    "tests/test_integration_crawl_jobs.py",
+    "scripts/__pycache__/run_crawl_worker.cpython-311.pyc",
+    "apps/api/app_api/routers/__pycache__/integration_crawl_jobs.cpython-311.pyc",
+    "apps/api/app_api/__pycache__/integration_crawl_schemas.cpython-311.pyc",
+    "app/services/__pycache__/crawl_job_service.cpython-311.pyc",
+    "scripts/run_crawl_worker.py",
+    "markdowns/integrations/PLAN_KEY_PROCESS_DEMO.md",
+    "markdowns/decisions/BRAINSTORM-multi-tenant-voc.md",
+    "markdowns/integrations/VOC_CRAWL_PROOF_RUNBOOK.md",
+    "markdowns/integrations/VOC_CRAWLER_PULL_FLOW_DEPLOYMENT.md",
+    "markdowns/integrations/HANDOFF_CODEX_TO_CLAUDE_KEY_PROCESS_DEMO.md",
+    "markdowns/fe-profile-progress-report.md",
+    "markdowns/PROJECT_STATUS.md",
+    "markdowns/integrations/PROMPT_VOC_CRAWL_PROOF.md",
+    "markdowns/integrations/implementation-plan-crawler-system/postman-api-guide-voc.md",
     "markdowns/integrations/VOC_STAKEHOLDER_OVERVIEW.md",
-    "markdowns/integrations/VOC_ONEBOX_SETUP_DEV.md.tmp.19984.040c5ccb0a94",
-    "markdowns/decisions/ADR-0001-ownership-inversion.md.tmp.19984.eb2c16220157",
-    "markdowns/integrations/MUST_READ.md.tmp.19984.1ea2c9817747",
-    "markdowns/decisions/ADR-0001-ownership-inversion.md.tmp.19984.a8909a191373",
-    "markdowns/integrations/VOC_ONEBOX_SETUP_DEV.md.tmp.19984.93a5ebeb5fb8",
-    "markdowns/integrations/VOC_ONEBOX_SETUP_DEV.md.tmp.19984.dac716d03e55",
     "markdowns/decisions/PROMPT_execute-redesign.md",
-    "markdowns/decisions/PROMPT_execute-redesign.md.tmp.20896.11b29f41356a",
-    "markdowns/integrations/implementation-plan-onebox/RI-02_keputusan-arsitektur.md.tmp.20896.9a4c0ece81a6",
     "markdowns/decisions/ADR-0002-ai-execution-split.md",
     "markdowns/decisions/ADR-0001-ownership-inversion.md",
     "markdowns/integrations/PROMPT_VOC_AGENT_SERVICE_TOKEN.md",
@@ -205,7 +214,6 @@
     "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
     "markdowns/integrations/write-test.md",
     "outputs/write-test.md",
-    "markdowns/integrations/VOC_CRAWLER_PULL_FLOW_DEPLOYMENT.md",
     "markdowns/integrations/VOC_TEAM_PRODUCT_BACKLOG.md",
     "markdowns/integrations/VOC_DBEAVER_SEEDING.md",
     "outputs/voice-of-customer-system-brief-v2-preview/montage.webp",
@@ -222,14 +230,6 @@
     "outputs/node_modules/@oai/artifact-tool/node_modules/string-split-by/readme.md",
     "outputs/node_modules/@oai/artifact-tool/node_modules/parenthesis/README.md",
     "outputs/node_modules/@oai/artifact-tool/node_modules/detect-libc/README.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/ms/readme.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/ms/license.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/https-proxy-agent/README.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/follow-redirects/README.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/debug/README.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/agent-base/README.md",
-    "outputs/node_modules/@oai/artifact-tool/LICENSE.md",
-    "outputs/node_modules/lucide/README.md",
-    "markdowns/integrations/VOC_ONEBOX_SETUP_DEV.md"
+    "outputs/node_modules/@oai/artifact-tool/node_modules/ms/readme.md"
   ]
 }

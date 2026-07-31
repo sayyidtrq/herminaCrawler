@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdowns/decisions/BRAINSTORM-multi-tenant-voc.md",
+                "file": "markdowns/integrations/JIRA_TICKETS_CORRECTED.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "BRAINSTORM-multi-tenant-voc"
+              "title": "JIRA_TICKETS_CORRECTED"
             }
           }
         ]
@@ -53,7 +53,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "file:jira",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -74,7 +74,8 @@
               "title": "Bookmarks"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -185,19 +186,23 @@
   },
   "active": "d70f97d92821c77e",
   "lastOpenFiles": [
-    "markdowns/decisions/SPEC-multi-tenant-opsi-c.md",
-    "markdowns/decisions/SPEC-multi-tenant-opsi-c.md.tmp.35236.c64724d8c3f8",
-    "alembic/versions/__pycache__/20260729_0002_add_durable_crawl_queue.cpython-311.pyc",
-    "voc_x5_migration.db",
-    "tests/__pycache__/test_integration_crawl_jobs.cpython-311-pytest-8.3.5.pyc",
-    "tests/test_integration_crawl_jobs.py",
-    "scripts/__pycache__/run_crawl_worker.cpython-311.pyc",
-    "apps/api/app_api/routers/__pycache__/integration_crawl_jobs.cpython-311.pyc",
-    "apps/api/app_api/__pycache__/integration_crawl_schemas.cpython-311.pyc",
-    "app/services/__pycache__/crawl_job_service.cpython-311.pyc",
-    "scripts/run_crawl_worker.py",
-    "markdowns/integrations/PLAN_KEY_PROCESS_DEMO.md",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.35776.793cc0de30a7",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.35776.457b6863d19a",
+    "scripts/run_crawl_worker.sh",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.34776.fb34feb1cff8",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.34776.d72b87e0b162",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.34776.b329675bd85b",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.34776.9605d655d0e2",
     "markdowns/decisions/BRAINSTORM-multi-tenant-voc.md",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md",
+    "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.21612.83b432e43555",
+    "markdowns/decisions/MEETING_NOTES_AGUNG_VoC-Sync.md",
+    "markdowns/decisions/MEETING_NOTES_AGUNG_VoC-Sync.md.tmp.4324.64b276bc1c84",
+    "markdowns/integrations/EPIC_BACKLOG.md",
+    "markdowns/integrations/~$VOC_EPIC_BACKLOG_1-3.xlsx",
+    "markdowns/integrations/FB352000",
+    "markdowns/decisions/SPEC-multi-tenant-opsi-c.md",
+    "markdowns/integrations/PLAN_KEY_PROCESS_DEMO.md",
     "markdowns/integrations/VOC_CRAWL_PROOF_RUNBOOK.md",
     "markdowns/integrations/VOC_CRAWLER_PULL_FLOW_DEPLOYMENT.md",
     "markdowns/integrations/HANDOFF_CODEX_TO_CLAUDE_KEY_PROCESS_DEMO.md",
@@ -226,10 +231,6 @@
     "outputs/voice-of-customer-system-brief-v2-preview/slide-04.png",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-03.png",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-02.png",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/skia-canvas/README.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/string-split-by/readme.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/parenthesis/README.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/detect-libc/README.md",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/ms/readme.md"
+    "outputs/node_modules/@oai/artifact-tool/node_modules/skia-canvas/README.md"
   ]
 }

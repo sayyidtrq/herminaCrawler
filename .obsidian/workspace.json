@@ -186,6 +186,10 @@
   },
   "active": "d70f97d92821c77e",
   "lastOpenFiles": [
+    "markdowns/integrations/PROMPT_FETCH_JOBS_E2E_CLAUDE.md",
+    "markdowns/integrations/FETCH_JOBS_E2E_CONTRACT.md",
+    "markdowns/integrations/PLAN_FAST_INGEST_LABELING_ON_DEMAND_AI.md",
+    "markdowns/decisions/ADR-0004-fast-ingestion-labeling-on-demand-ai.md",
     "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.35776.793cc0de30a7",
     "markdowns/integrations/JIRA_TICKETS_CORRECTED.md.tmp.35776.457b6863d19a",
     "scripts/run_crawl_worker.sh",
@@ -200,7 +204,6 @@
     "markdowns/decisions/MEETING_NOTES_AGUNG_VoC-Sync.md.tmp.4324.64b276bc1c84",
     "markdowns/integrations/EPIC_BACKLOG.md",
     "markdowns/integrations/~$VOC_EPIC_BACKLOG_1-3.xlsx",
-    "markdowns/integrations/FB352000",
     "markdowns/decisions/SPEC-multi-tenant-opsi-c.md",
     "markdowns/integrations/PLAN_KEY_PROCESS_DEMO.md",
     "markdowns/integrations/VOC_CRAWL_PROOF_RUNBOOK.md",
@@ -219,8 +222,6 @@
     "markdowns/integrations/implementation-plan-onebox/RI-06_tenant-mapping.md",
     "markdowns/integrations/write-test.md",
     "outputs/write-test.md",
-    "markdowns/integrations/VOC_TEAM_PRODUCT_BACKLOG.md",
-    "markdowns/integrations/VOC_DBEAVER_SEEDING.md",
     "outputs/voice-of-customer-system-brief-v2-preview/montage.webp",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-10.png",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-09.png",
@@ -230,7 +231,6 @@
     "outputs/voice-of-customer-system-brief-v2-preview/slide-05.png",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-04.png",
     "outputs/voice-of-customer-system-brief-v2-preview/slide-03.png",
-    "outputs/voice-of-customer-system-brief-v2-preview/slide-02.png",
-    "outputs/node_modules/@oai/artifact-tool/node_modules/skia-canvas/README.md"
+    "outputs/voice-of-customer-system-brief-v2-preview/slide-02.png"
   ]
 }

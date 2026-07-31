@@ -10,6 +10,7 @@ class CrawlTargetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     onebox_location_id: int = Field(gt=0)
+    target_review_count: int | None = Field(default=None, ge=1, le=300)
 
 
 class CrawlBatchCreateRequest(BaseModel):
@@ -25,6 +26,7 @@ class CrawlJobErrorResponse(BaseModel):
 
 
 class CrawlJobResponse(BaseModel):
+    target_review_count: int
     job_id: int
     onebox_location_id: int
     status: str
@@ -42,6 +44,7 @@ class CrawlBatchDataResponse(BaseModel):
     slot: str | None = None
     job_count: int
     counts: dict[str, int]
+    review_counts: dict[str, int]
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None

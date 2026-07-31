@@ -67,7 +67,7 @@
 
 | ID | User Story | Acceptance Criteria | Task terkait | Status |
 |---|---|---|---|---|
-| E2-S1 | Sebagai **OneBox**, saya ingin memicu crawl satu target secara non-blocking, supaya UI tidak menunggu Selenium selesai. | `POST /api/integration/v1/crawl-jobs` balas `202`+`batch_id` <1 detik | M2-03 | 🟡 [verified-local] di branch Codex, **belum dibuktikan di Dev (X1)** |
+| E2-S1 | Sebagai **OneBox**, saya ingin memicu crawl satu target secara non-blocking, supaya UI tidak menunggu Selenium selesai. | `POST /api/integration/v1/crawl-jobs` balas `202`+`batch_id` <1 detik | M2-03 | ✅ [verified-dev] enqueue non-blocking dan crawl real terbukti; target 50 menghasilkan 40 review, 0 gagal |
 | E2-S2 | Sebagai **sistem**, job yang gagal harus di-retry sesuai jenis error (429 backoff, 404 tidak diulang, timeout diulang singkat), supaya crawl tangguh. | Retry differentiated per kelas error | M2-04 | 🟡 [verified-local] |
 | E2-S3 | Sebagai **sistem**, crawl antar-target harus diberi jeda, supaya tidak memicu blokir Google. | Rate limit + stagger dalam window | M2-05 | 🟡 [verified-local] |
 | E2-S4 | Sebagai **ops**, saya ingin melihat status batch crawl (queued/succeeded/failed), supaya saya tahu progres tanpa membaca log mentah. | `GET /api/integration/v1/crawl-jobs/{batch_id}` | M2-07 | 🟡 [verified-local] |
@@ -77,7 +77,7 @@
 | E2-S8 | Sebagai **manajemen**, saya ingin review kompetitor tersedia untuk perbandingan, supaya bisa insight tanpa jadi Ticket. | Endpoint `competitor_reviews` di Crawler + consume di OneBox | M3-06 (API gap), M3-07 | 🔴 Blocked — endpoint belum ada sama sekali di Crawler |
 | E2-S9 | Sebagai **OneBox**, saya ingin lokasi lama yang sudah sempat di-crawl tapi belum jadi Ticket direkonsiliasi, supaya tidak ada data "hilang" di tengah jalan. | Kasus Bekasi — item spesifik yang sudah ditemukan | M3-05 | ⬜ Todo |
 
-**Release Gate E2 (dari `VOC_CRAWL_PROOF_RUNBOOK.md`):** X1 (crawl Google real di Dev) adalah **risiko #1 yang belum terbukti**. Kerjakan **paling awal** minggu ini — gagal sekarang murah, gagal setelah E3 (scheduler) dibangun di atasnya jadi mahal. Ikuti runbook X1→X5 apa adanya, jangan lompat ke E3 sebelum G1-G5 di runbook itu lulus.
+**Release Gate E2 (update 31 Juli 2026):** X1 crawl Google real dan X5 enqueue sudah **[verified-dev]**. X1 berstatus PASS WITH LIMITATION karena target 50 menghasilkan 40 review tanpa kegagalan. Jalur kritis berpindah ke X3 analysis penuh, X4 delta enriched, lalu ingestion/Ticket OneBox. Jangan lompat ke E3 sebelum G3-G5 di runbook lulus.
 
 ---
 

@@ -58,12 +58,21 @@ class CrawlJobService:
         )
 
     @staticmethod
-    def request_fingerprint(slot: str | None, onebox_location_ids: list[int]) -> str:
-        canonical = json.dumps(
-            {"slot": slot, "onebox_location_ids": sorted(onebox_location_ids)},
-            separators=(",", ":"),
-            sort_keys=True,
-        )
+    def request_fingerprint(
+        slot: str | None,
+        onebox_location_ids: list[int],
+        target_review_counts: dict[int, int] | None = None,
+    ) -> str:
+        payload: dict = {
+            "slot": slot,
+            "onebox_location_ids": sorted(onebox_location_ids),
+        }
+        if target_review_counts:
+            payload["target_review_counts"] = {
+                str(location_id): target_review_counts[location_id]
+                for location_id in sorted(target_review_counts)
+            }
+        canonical = json.dumps(payload, separators=(",", ":"), sort_keys=True)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def enqueue(
@@ -74,6 +83,7 @@ class CrawlJobService:
         idempotency_key: str,
         onebox_location_ids: list[int],
         slot: str | None,
+        target_review_counts: dict[int, int] | None = None,
     ) -> tuple[dict, bool]:
         key = idempotency_key.strip()
         if not 8 <= len(key) <= 128:
@@ -89,7 +99,17 @@ class CrawlJobService:
                 "INVALID_TARGETS",
                 "At least one OneBox location target is required.",
             )
-        fingerprint = self.request_fingerprint(slot, target_ids)
+        target_review_counts = target_review_counts or {}
+        unknown_overrides = sorted(set(target_review_counts) - set(target_ids))
+        if unknown_overrides:
+            raise CrawlQueueError(
+                400,
+                "INVALID_TARGETS",
+                "Target review count override references an unknown location target.",
+            )
+        fingerprint = self.request_fingerprint(
+            slot, target_ids, target_review_counts
+        )
 
         with self.session_factory() as session:
             existing = session.scalar(
@@ -150,7 +170,10 @@ class CrawlJobService:
                         onebox_location_id=location.onebox_location_id,
                         status="queued",
                         source_snapshot=location.source,
-                        target_review_count=location.target_review_count,
+                        target_review_count=target_review_counts.get(
+                            location.onebox_location_id,
+                            location.target_review_count,
+                        ),
                         max_attempts=self.settings.crawl_worker_max_attempts,
                     )
                 )
@@ -411,14 +434,28 @@ class CrawlJobService:
                 "failed",
             )
         }
+        review_counts = {
+            "target": 0,
+            "fetched": 0,
+            "inserted": 0,
+            "duplicate": 0,
+            "failed": 0,
+        }
         for job in jobs:
             counts[job.status] = counts.get(job.status, 0) + 1
+            review_counts["target"] += job.target_review_count
+            result = job.result_json or {}
+            review_counts["fetched"] += int(result.get("total_fetched") or 0)
+            review_counts["inserted"] += int(result.get("total_inserted") or 0)
+            review_counts["duplicate"] += int(result.get("total_duplicate") or 0)
+            review_counts["failed"] += int(result.get("total_failed") or 0)
         data = {
             "batch_id": batch.public_id,
             "status": batch.status,
             "slot": batch.slot,
             "job_count": len(jobs),
             "counts": counts,
+            "review_counts": review_counts,
             "created_at": batch.created_at,
             "started_at": batch.started_at,
             "finished_at": batch.finished_at,
@@ -428,6 +465,7 @@ class CrawlJobService:
                 {
                     "job_id": job.id,
                     "onebox_location_id": job.onebox_location_id,
+                    "target_review_count": job.target_review_count,
                     "status": job.status,
                     "attempts": job.attempts,
                     "max_attempts": job.max_attempts,

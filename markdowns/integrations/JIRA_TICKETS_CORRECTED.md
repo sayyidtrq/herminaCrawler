@@ -63,7 +63,7 @@
   > Layar/kontrak "Analisis" sisi OneBox — bagian TRANSAKSI (setup/trigger AI), berbeda dari hasil (itu di DNGO19-3389 Insights). Scope:
   > (1) kontrak parameter AI yang dikirim ke Crawler: `ai_enabled`, `model`, `prompt_version`, `threshold` (`M7-02`);
   > (2) simpan parameter tersebut di `Connection.Options`, dikirimkan lewat worklist ke Crawler (`M7-04`);
-  > (3) klasifikasi rule-first memakai `Service\Ruling`, dijalankan SEBELUM AI untuk menghemat pemakaian token — rules ini otomatis ter-apply lewat `Ticketing.php:263` saat Ticket dibuat (`M7-05`).
+  > (3) klasifikasi rule-first memakai `Service\ Ruling`, dijalankan SEBELUM AI untuk menghemat pemakaian token — rules ini otomatis ter-apply lewat `Ticketing.php:263` saat Ticket dibuat (`M7-05`).
   > **DI LUAR SCOPE** ticket ini (tanggung jawab tim Crawler/VC, repo `hermina_crawler` — JANGAN dikerjakan di sini): antrean analisa AI dan perhitungan `tokens_used` (`M7-01`, `M7-03`), serta perbaikan prompt kategori yang saat ini tidak diskriminatif (73 dari 75 review jatuh ke kategori yang sama).
 
 ### DNGO19-3389 — AI Insights

@@ -3,6 +3,13 @@
 > Disusun 2026-07-21 dari pembacaan langsung codebase VoC + OneBox dan probe ke
 > API staging (`192.168.1.3:8000`). Semua angka di dokumen ini hasil pengukuran,
 > bukan perkiraan.
+> **Koreksi status 31 Juli 2026:** bagian risiko Selenium dan LLM di bawah adalah snapshot
+> historis 21 Juli. Proof Dev terbaru membuktikan Chromium headed melalui Xvfb dengan
+> profile Google persisten berhasil mengambil 40 review real tanpa kegagalan, idempotency
+> dan dedup lulus, serta delta API mengembalikan 40 review. Ollama sekarang memakai
+> `gemma3:1b`; satu analysis valid menggunakan 839 token, tetapi batch penuh masih berjalan
+> lambat karena request diproses serial. Acuan status aktif adalah
+> `VOC_CRAWL_PROOF_RUNBOOK.md` dan `PLAN_KEY_PROCESS_DEMO.md`.
 
 ## 1. Ringkasan status
 

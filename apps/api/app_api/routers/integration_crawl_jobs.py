@@ -73,6 +73,11 @@ def enqueue_crawl_jobs(
             onebox_location_ids=[
                 target.onebox_location_id for target in payload.targets
             ],
+            target_review_counts={
+                target.onebox_location_id: target.target_review_count
+                for target in payload.targets
+                if target.target_review_count is not None
+            },
             slot=payload.slot,
         )
     except CrawlQueueError as exc:

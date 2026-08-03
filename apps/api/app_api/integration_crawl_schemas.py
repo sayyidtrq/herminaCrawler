@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CrawlTargetRequest(BaseModel):
@@ -11,6 +11,16 @@ class CrawlTargetRequest(BaseModel):
 
     onebox_location_id: int = Field(gt=0)
     target_review_count: int | None = Field(default=None, ge=1, le=300)
+
+    # Opsional dan backward-compatible: tidak dikirim = ambil semua tanggal.
+    date_from: datetime | None = Field(default=None)
+    date_to: datetime | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def _check_range(self):
+        if self.date_from and self.date_to and self.date_from > self.date_to:
+            raise ValueError("date_from must not be later than date_to.")
+        return self
 
 
 class CrawlBatchCreateRequest(BaseModel):

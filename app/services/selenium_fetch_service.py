@@ -55,6 +55,7 @@ class SeleniumFetchService:
         target: int | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        on_progress=None,
     ) -> dict:
         location = self.location_service.get_location(location_id)
         if location is None:
@@ -91,7 +92,7 @@ class SeleniumFetchService:
         )
         try:
             raw_reviews = self.client.fetch_reviews(
-                location, limit=requested_target
+                location, limit=requested_target, on_progress=on_progress
             )
             result["metadata"] = dict(self.client.last_metadata)
             result["metadata"]["date_from"] = date_from.isoformat() if date_from else None

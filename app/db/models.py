@@ -224,6 +224,10 @@ class CrawlJob(Base):
     )
     source_snapshot: Mapped[str] = mapped_column(String(50), nullable=False)
     target_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Rentang tanggal yang diminta pemanggil. Disimpan per job, bukan per batch,
+    # karena tiap cabang boleh punya rentang sendiri.
+    date_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    date_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )

@@ -40,7 +40,9 @@ class SeleniumGoogleMapsReviewClient(ReviewSourceClient):
         self.driver_factory = driver_factory or self._create_driver
         self.last_metadata: dict = {}
 
-    def fetch_reviews(self, location: Location, limit: int = 50) -> list[dict]:
+    def fetch_reviews(
+        self, location: Location, limit: int = 50, on_progress=None
+    ) -> list[dict]:
         target = min(
             max(1, int(limit)),
             self.settings.selenium_max_target_reviews,
@@ -73,6 +75,7 @@ class SeleniumGoogleMapsReviewClient(ReviewSourceClient):
                 target=target,
                 source_url=url,
                 scraped_at=started_at,
+                on_progress=on_progress,
             )
             if not reviews:
                 raise ReviewSourceError(
@@ -237,6 +240,7 @@ class SeleniumGoogleMapsReviewClient(ReviewSourceClient):
         target: int,
         source_url: str,
         scraped_at: datetime,
+        on_progress=None,
     ):
         reviews: list[dict] = []
         review_keys: set[str] = set()
@@ -252,6 +256,13 @@ class SeleniumGoogleMapsReviewClient(ReviewSourceClient):
             and no_new_attempts < self.max_no_new_scroll_attempts
         ):
             count_before = len(reviews)
+            if on_progress is not None:
+                # Dilaporkan tiap putaran gulir, bukan tiap kartu: menulis ke
+                # database sesering kartu akan lebih mahal daripada crawl-nya.
+                try:
+                    on_progress(len(reviews), target)
+                except Exception:  # laporan kemajuan tidak boleh menggagalkan crawl
+                    logger.debug('on_progress gagal', exc_info=True)
             cards = self._find_review_cards(driver)
             for card in cards:
                 if len(reviews) >= target:

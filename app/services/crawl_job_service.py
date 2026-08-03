@@ -36,6 +36,8 @@ class ClaimedCrawlJob:
     company_id: int
     location_id: int
     target_review_count: int
+    date_from: datetime | None
+    date_to: datetime | None
     attempts: int
     max_attempts: int
 
@@ -62,11 +64,22 @@ class CrawlJobService:
         slot: str | None,
         onebox_location_ids: list[int],
         target_review_counts: dict[int, int] | None = None,
+        target_date_ranges: dict | None = None,
     ) -> str:
         payload: dict = {
             "slot": slot,
             "onebox_location_ids": sorted(onebox_location_ids),
         }
+        if target_date_ranges:
+            # Rentang ikut sidik jari: idempotency key yang sama dengan rentang
+            # berbeda adalah permintaan berbeda, bukan pengulangan.
+            payload["target_date_ranges"] = {
+                str(location_id): [
+                    d.isoformat() if d else None
+                    for d in target_date_ranges[location_id]
+                ]
+                for location_id in sorted(target_date_ranges)
+            }
         if target_review_counts:
             payload["target_review_counts"] = {
                 str(location_id): target_review_counts[location_id]
@@ -84,6 +97,7 @@ class CrawlJobService:
         onebox_location_ids: list[int],
         slot: str | None,
         target_review_counts: dict[int, int] | None = None,
+        target_date_ranges: dict | None = None,
     ) -> tuple[dict, bool]:
         key = idempotency_key.strip()
         if not 8 <= len(key) <= 128:
@@ -107,8 +121,9 @@ class CrawlJobService:
                 "INVALID_TARGETS",
                 "Target review count override references an unknown location target.",
             )
+        target_date_ranges = target_date_ranges or {}
         fingerprint = self.request_fingerprint(
-            slot, target_ids, target_review_counts
+            slot, target_ids, target_review_counts, target_date_ranges
         )
 
         with self.session_factory() as session:
@@ -142,6 +157,29 @@ class CrawlJobService:
             )
             found_ids = {location.onebox_location_id for location in locations}
             missing = [target for target in target_ids if target not in found_ids]
+
+            if missing:
+                # Cabang bisa saja baru dibuat di OneBox dan belum tercermin di
+                # cache lokal. OneBox pemilik daftarnya, jadi tanya ulang ke
+                # sana sekali sebelum menyerah — bukan menyuruh orang
+                # menjalankan refresh manual di mesin ini.
+                if self._refresh_worklist_once(company_id, missing):
+                    locations = list(
+                        session.scalars(
+                            select(Location)
+                            .where(
+                                Location.company_id == company_id,
+                                Location.onebox_location_id.in_(target_ids),
+                                Location.is_active.is_(True),
+                                Location.crawl_enabled.is_(True),
+                                Location.ingest_reviews.is_(True),
+                            )
+                            .order_by(Location.id)
+                        )
+                    )
+                    found_ids = {location.onebox_location_id for location in locations}
+                    missing = [target for target in target_ids if target not in found_ids]
+
             if missing:
                 raise CrawlQueueError(
                     404,
@@ -170,6 +208,12 @@ class CrawlJobService:
                         onebox_location_id=location.onebox_location_id,
                         status="queued",
                         source_snapshot=location.source,
+                        date_from=target_date_ranges.get(
+                            location.onebox_location_id, (None, None)
+                        )[0],
+                        date_to=target_date_ranges.get(
+                            location.onebox_location_id, (None, None)
+                        )[1],
                         target_review_count=target_review_counts.get(
                             location.onebox_location_id,
                             location.target_review_count,
@@ -200,6 +244,68 @@ class CrawlJobService:
                 },
             )
             return self._serialize_batch(session, batch), True
+
+    def _report_progress(self, job_id: int, fetched: int) -> None:
+        """Simpan kemajuan sementara supaya status batch bisa membacanya.
+
+        Ditulis ke result_json karena itu kolom yang memang sudah dibaca
+        _serialize_batch. Nilainya ditimpa hasil akhir saat job selesai, jadi
+        tidak ada dua sumber angka yang bisa berselisih.
+        """
+        try:
+            with self.session_factory() as session:
+                job = session.get(CrawlJob, job_id)
+                if job is None or job.status != "running":
+                    return
+                current = dict(job.result_json or {})
+                if int(current.get("progress_fetched") or 0) == int(fetched):
+                    return
+                current["progress_fetched"] = int(fetched)
+                job.result_json = current
+                session.commit()
+        except Exception:  # kemajuan bersifat kosmetik, jangan sampai menggagalkan crawl
+            logger.debug("gagal menyimpan kemajuan job %s", job_id, exc_info=True)
+
+    def _refresh_worklist_once(self, company_id: int, missing: list[int]) -> bool:
+        """Tarik ulang worklist OneBox. True kalau ada yang berubah/terisi.
+
+        Sengaja tidak melempar: gagal menyegarkan tidak boleh mengubah bentuk
+        kegagalan yang dilihat pemanggil. Kalau refresh gagal, target tetap
+        dianggap tidak dikenal dan TARGET_NOT_FOUND yang keluar — sama seperti
+        sebelumnya, hanya dengan satu usaha tambahan yang tidak merugikan.
+        """
+        from app.services.worklist_sync_service import (
+            WorklistSyncError,
+            WorklistSyncService,
+        )
+
+        if not WorklistSyncService.is_configured(self.settings):
+            logger.warning(
+                "crawl target %s tidak dikenal dan worklist OneBox belum "
+                "dikonfigurasi (ONEBOX_BASE_URL/SVC_EMAIL/SVC_PASSWORD/SITE_ID)",
+                missing,
+            )
+            return False
+
+        try:
+            result = WorklistSyncService(
+                company_id=company_id, session_factory=self.session_factory
+            ).refresh()
+        except WorklistSyncError as exc:
+            logger.warning("refresh worklist otomatis gagal untuk %s: %s", missing, exc)
+            return False
+        except Exception:  # pragma: no cover - jaring pengaman
+            logger.exception("refresh worklist otomatis gagal untuk %s", missing)
+            return False
+
+        logger.info(
+            "worklist disegarkan otomatis karena target %s belum dikenal "
+            "(fetched=%s upserted=%s)",
+            missing,
+            getattr(result, "fetched", None),
+            getattr(result, "upserted", None),
+        )
+        return True
 
     def get_batch(self, *, company_id: int, public_id: str) -> dict:
         with self.session_factory() as session:
@@ -272,6 +378,8 @@ class CrawlJobService:
                 company_id=job.company_id,
                 location_id=job.location_id,
                 target_review_count=job.target_review_count,
+                date_from=job.date_from,
+                date_to=job.date_to,
                 attempts=job.attempts,
                 max_attempts=job.max_attempts,
             )
@@ -305,7 +413,11 @@ class CrawlJobService:
 
             fetch_service = self.fetch_service_factory(claimed.company_id)
             result = fetch_service.fetch_location(
-                claimed.location_id, target=claimed.target_review_count
+                claimed.location_id,
+                target=claimed.target_review_count,
+                date_from=claimed.date_from,
+                date_to=claimed.date_to,
+                on_progress=lambda n, total: self._report_progress(claimed.id, n),
             )
             if result.get("status") in {"success", "partial_success"}:
                 return self._finish(claimed, status="succeeded", result=result)
@@ -445,7 +557,12 @@ class CrawlJobService:
             counts[job.status] = counts.get(job.status, 0) + 1
             review_counts["target"] += job.target_review_count
             result = job.result_json or {}
-            review_counts["fetched"] += int(result.get("total_fetched") or 0)
+            # Job yang masih berjalan belum punya total_fetched; yang ada baru
+            # progress_fetched dari loop gulir. Dipakai supaya layar bisa
+            # menampilkan "n dari target" selagi crawl berlangsung.
+            review_counts["fetched"] += int(
+                result.get("total_fetched") or result.get("progress_fetched") or 0
+            )
             review_counts["inserted"] += int(result.get("total_inserted") or 0)
             review_counts["duplicate"] += int(result.get("total_duplicate") or 0)
             review_counts["failed"] += int(result.get("total_failed") or 0)

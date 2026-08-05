@@ -1,9 +1,13 @@
 ## VoC OneBox — Daftar Ticket Jira
 
-> **Keputusan baru:**
-> - Restrukturisasi menu navigasi VoC (3 grup: Transaksi/Output/Setting) **TIDAK jadi ticket terpisah** — dikerjakan di `feature/DNGO19-3346_Media-Crawler-Google-Business-Review`.
-> - **Delta Sync** (`M3-03`, `M3-04`, `M3-05`) **dikerjakan di branch 3346** — bukan ticket terpisah.
-> - **Review Detail** (`M8-02`) **digabung ke dalam `DNGO19-3387` (Review Manage Actions)** — satu ticket untuk seluruh alur "Ulasan" (detail + aksi kelola).
+> **Keputusan scope terbaru (3 Agustus 2026):**
+> - `DNGO19-3346` **tidak lagi dipakai sebagai penampung scope lanjutan**. Pekerjaan yang sebelumnya dicatat di sana dibagi ke ticket feature yang lebih spesifik.
+> - Restrukturisasi menu navigasi VoC dinyatakan sudah diimplementasikan pada integration branch `feature/voc`; sisanya adalah verifikasi fungsi, urutan menu, route, dan permission.
+> - **Delta Sync dan safe checkpoint** menjadi bagian `DNGO19-3420` — Fetch Jobs Crawl.
+> - **Targeted backfill lokasi baru** menjadi bagian `DNGO19-3385` — Master-Data-Locations.
+> - **Rekonsiliasi review lama tanpa Ticket OneBox** dibagi antara `DNGO19-3420` (menarik dan mengidentifikasi review) dan `DNGO19-3387` (membuat/menghubungkan Ticket secara idempotent).
+> - **Review Detail** tetap digabung ke dalam `DNGO19-3387` — satu ticket untuk seluruh alur Ulasan (detail + aksi kelola).
+> - **Batas AI:** Crawler memilih model, provider, prompt runtime, dan strategi eksekusi. OneBox hanya mengatur apakah AI aktif serta memastikan struktur output AI konsisten dan dapat digunakan feature OneBox.
 >
 > Konvensi tetap: maks 5-6 MD/ticket, 1 screen = 1 ticket, branch 1:1 dengan ticket, jangan campur scope OneBox (PHP, repo `onecloud`) dengan Crawler (Python, repo `hermina_crawler`).
 
@@ -24,7 +28,29 @@
 | **DNGO19-3391** | VOC : Config Setup            | READY TO DEV         | `feature/DNGO19-3391_VOC-Config-Setup`                     |
 | **DNGO19-3392** | VOC : Generate Reports        | READY TO DEV         | `feature/DNGO19-3392_VOC-Generate-Reports`                 |
 | **DNGO19-3396** | VOC : Competitor Analysis     | TODO                 | `feature/DNGO19-3396_VOC-Competitor-Analysis`              |
-| DNGO19-3346     | Menu Restructure + Delta Sync | *dikerjakan di 3346* | `feature/DNGO19-3346_Media-Crawler-Google-Business-Review` |
+| DNGO19-3346     | Media Crawler Google Business Review | *scope lanjutan sudah didistribusikan; tidak dipakai sebagai bucket* | `feature/DNGO19-3346_Media-Crawler-Google-Business-Review` |
+
+---
+
+## Audit Implementasi Branch Remote — 3 Agustus 2026
+
+Audit ini membandingkan branch ticket dengan integration branch `feature/voc` pada repository `ciptadra/onecloud`. Status di bawah adalah **status implementasi kode**, bukan pengganti status workflow Jira.
+
+| Ticket | Temuan pada kode terbaru | Kesimpulan tracking |
+|---|---|---|
+| DNGO19-3385 | Branch ticket masih memiliki 3 commit yang belum ada di `feature/voc`; berisi implementasi PIC Location dan perubahan halaman Location. | **In progress / pending merge dan QA.** Targeted backfill lokasi baru belum teridentifikasi sebagai implementasi khusus dan masih menjadi pekerjaan tersisa. |
+| DNGO19-3386 | Isi branch ticket identik dengan `feature/voc`. | **Implemented in integration branch; pending functional verification/QA.** |
+| DNGO19-3387 | Branch ticket tidak memiliki commit unik dan tertinggal dari `feature/voc`. Detail review, assign, perubahan status/priority, catatan internal, dan histori sudah ada di `feature/voc`. | **Implemented in integration branch; pending functional verification/QA.** Rekonsiliasi review lama tetap perlu diverifikasi sebagai skenario khusus. |
+| DNGO19-3388 | Branch ticket tidak memiliki implementasi unik. Halaman AI Analysis pada `feature/voc` masih berisi data simulasi dan aksi simulasi. | **Not implemented.** Jira dan tracker perlu disesuaikan dengan pembagian tanggung jawab AI terbaru. |
+| DNGO19-3389 | Branch ticket tidak memiliki implementasi unik. | **Not implemented / remaining.** |
+| DNGO19-3390 | Branch ticket tidak memiliki implementasi unik. | **Not implemented / remaining.** |
+| DNGO19-3391 | Branch ticket memiliki 1 commit yang belum ada di `feature/voc`; berisi benefit/quota VoC dan halaman Settings. | **In progress / pending merge dan QA.** |
+| DNGO19-3392 | Branch ticket tidak memiliki implementasi unik. | **Not implemented / remaining.** |
+| DNGO19-3396 | Branch ticket tidak memiliki implementasi unik. | **Not implemented / remaining.** |
+| DNGO19-3407 | Branch ticket tidak memiliki implementasi unik. | **Not implemented / remaining.** |
+| DNGO19-3420 | Flow enqueue crawl, monitoring batch, import review, deduplication, dan safe checkpoint sudah terlihat di `feature/voc`; branch ticket masih memiliki 2 commit tambahan yang belum ada di integration branch. | **Substantially implemented; remaining: review 2 commit, merge, legacy reconciliation, dry-run/cancel decision or implementation, retry/resume verification, dan QA end-to-end.** |
+
+> **Catatan menu:** `feature/voc` sudah memiliki perubahan menu/migration VoC. Karena seed lama `scriptdb/voc/voc_setup_all.sql` masih memperlihatkan struktur flat, status menu dicatat sebagai **implemented, pending verification** sampai struktur Transaksi/Output/Setting, urutan, route, dan permission lolos pengecekan di environment Dev.
 
 ---
 ### DNGO19-3385 — Master-Data-Locations
@@ -40,6 +66,7 @@
 > - Menghapus mekanisme push-sync lama pada tombol resync dan toggle setelah consumer worklist Crawler dinyatakan stabil.
 > - Memperbaiki `StatusId` Connection 1039 Hermina Depok agar tidak ikut proses penjadwalan yang tidak sesuai.
 > - Memastikan lokasi nonaktif tidak ikut proses crawl tanpa menghapus review dan data historisnya.
+> - Memicu targeted backfill ketika lokasi baru mulai dipantau agar review historis lokasi tersebut tidak terlewat oleh checkpoint tenant yang sudah berjalan.
 >
 > **Acceptance Criteria:**
 > - Admin dapat mengisi dan memperbarui data PIC lokasi.
@@ -50,10 +77,13 @@
 > - Menonaktifkan lokasi tidak menghapus review atau histori yang sudah ada.
 > - Setelah consumer worklist stabil, tombol resync dan toggle tidak lagi memanggil endpoint write lama di Crawler.
 > - Connection 1039 Hermina Depok memiliki `StatusId` yang benar dan tidak ikut scheduler yang tidak sesuai.
+> - Lokasi baru dapat memperoleh review historis sebelum melanjutkan delta sync reguler.
+> - Targeted backfill dapat dijalankan ulang tanpa membuat review atau Ticket duplikat.
 > - Perubahan tidak mengganggu fungsi CRUD Location yang sudah tersedia.
 >
 > **Dependency:**
 > - Penghapusan push-sync lama hanya dilakukan setelah consumer worklist Crawler terbukti stabil di environment Dev.
+> - Endpoint integration review Crawler mendukung filter lokasi dan rentang waktu historis.
 >
 > **Out of Scope:**
 > - Implementasi consumer worklist di repository `hermina_crawler`.
@@ -133,6 +163,37 @@
 > - Tidak ada Connection lain yang berubah.
 > - Perubahan berhasil diverifikasi pada environment Dev.
 
+#### Subtask 4
+
+**Summary**
+
+`VOC - Master Data Locations - Trigger Targeted Backfill for New Location`
+
+**Description**
+
+> Tambahkan proses targeted backfill ketika lokasi baru berhasil terhubung dengan Crawler, sebelum lokasi tersebut hanya mengikuti checkpoint delta tenant reguler.
+>
+> **Pembagian tanggung jawab:**
+> - Master Data Locations menentukan lokasi mana yang baru dan memicu backfill untuk lokasi tersebut.
+> - Fetch Jobs Crawl menjalankan mekanisme pull, safe checkpoint, deduplication, dan pemantauan hasil.
+>
+> **Scope:**
+> - Gunakan identifier lokasi yang sudah dipetakan antara OneBox dan Crawler.
+> - Kirim filter lokasi serta rentang waktu historis yang disepakati.
+> - Jalankan backfill setelah provisioning lokasi berhasil dan sebelum lokasi hanya bergantung pada checkpoint tenant reguler.
+> - Simpan status terakhir: pending, running, success, partial success, atau failed.
+> - Sediakan retry yang aman untuk backfill gagal.
+>
+> **Acceptance Criteria:**
+> - Lokasi baru memperoleh review historis yang tersedia dalam periode backfill.
+> - Review lama tidak terlewat walaupun checkpoint tenant telah melewati tanggal review tersebut.
+> - Retry dan rerun tidak membuat Message atau Ticket duplikat.
+> - Kegagalan satu lokasi tidak memajukan checkpoint atau mengganggu lokasi lain.
+> - Status, waktu eksekusi, dan counter hasil backfill dapat ditelusuri.
+>
+> **Status audit 3 Agustus 2026:**
+> - Implementasi PIC Location terdeteksi pada branch 3385, tetapi targeted backfill belum teridentifikasi sebagai implementasi khusus. Subtask ini masih perlu dikerjakan dan diuji.
+
 
 ### DNGO19-3386 — Master-Data-Competitors
 
@@ -193,7 +254,7 @@
 
 - **Owner:** OneBox (OB) · **Status:** IN DEV SPEC REVIEW · **MD:** 3 + 4 = **7 MD** ⚠️ melebihi cap 5MD
 
-> **Catatan:** tetap satu ticket induk dan satu branch, tetapi pekerjaan dibagi menjadi dua subtask agar progress dan estimasi dapat dilacak.
+> **Catatan:** tetap satu ticket induk dan satu branch. Implementasi Review Detail dan Manage Actions sudah terdeteksi di `feature/voc`; status belum boleh dianggap Done sebelum functional test dan QA selesai. Rekonsiliasi review lama dicatat sebagai subtask tambahan agar tanggung jawabnya tidak kembali masuk ke 3346.
 
 #### Description
 
@@ -208,6 +269,7 @@
 > - Menyediakan aksi perubahan status sesuai workflow Ticket OneBox.
 > - Menyediakan aksi penambahan internal note.
 > - Menggunakan mekanisme Ticket OneBox yang sudah tersedia, bukan membuat sistem assignment, status, atau note baru khusus VoC.
+> - Membuat atau menghubungkan Ticket untuk review lama yang sudah berhasil ditarik ke OneBox tetapi belum memiliki Ticket, tanpa menghasilkan duplikasi.
 >
 > **Acceptance Criteria:**
 > - User dapat membuka detail dari satu baris review.
@@ -219,6 +281,7 @@
 > - Internal note tersimpan pada histori Ticket.
 > - Aksi yang gagal menampilkan pesan error dan tidak menghasilkan perubahan parsial.
 > - Permission mengikuti mekanisme permission Ticket OneBox.
+> - Review lama tanpa Ticket dapat diproses secara idempotent; review yang sudah memiliki Ticket dilewati.
 >
 > **Technical Reference:**
 > - `TicketController::showTicketDetail`
@@ -286,33 +349,74 @@
 > - User tanpa permission tidak dapat menjalankan action.
 > - Tidak ada workflow baru yang menduplikasi mekanisme Ticket OneBox.
 
+#### Subtask 3
+
+**Summary**
+
+`VOC - Review Manage Actions - Reconcile Legacy Reviews Without Tickets`
+
+**Description**
+
+> Rekonsiliasi review lama yang sudah tersedia dari Crawler atau sudah menjadi Message OneBox, tetapi belum memiliki Ticket OneBox yang dapat dikelola pada halaman Ulasan.
+>
+> **Pembagian tanggung jawab:**
+> - DNGO19-3420 menarik review lama, menjalankan delta/catch-up, dan menghasilkan counter hasil import.
+> - DNGO19-3387 memproses Message yang belum memiliki Ticket, lalu memastikan Ticket dapat dibuka dan dikelola melalui Review Detail.
+>
+> **Scope:**
+> - Identifikasi Message review VoC aktif yang belum terhubung ke Ticket.
+> - Buat Ticket menggunakan pipeline/provider OneBox yang sudah tersedia.
+> - Hubungkan Message, Ticket, lokasi, dan metadata hasil analisis yang tersedia.
+> - Lewati review yang sudah memiliki Ticket.
+> - Sediakan counter `processed`, `created`, `deduped/skipped`, dan `failed`.
+> - Catat error per review dengan informasi aman untuk troubleshooting.
+>
+> **Acceptance Criteria:**
+> - Review lama tanpa Ticket dapat dibuat menjadi Ticket OneBox.
+> - Review yang sudah memiliki Ticket tidak menghasilkan Ticket kedua.
+> - Ticket hasil rekonsiliasi dapat dibuka dari daftar Ulasan dan memakai aksi manage yang sama.
+> - Kegagalan sebagian dapat di-retry tanpa mengulang item yang sudah sukses.
+> - Hasil rekonsiliasi memiliki counter dan error summary yang dapat ditelusuri.
+>
+> **Status audit 3 Agustus 2026:**
+> - `feature/voc` sudah memiliki pemrosesan pending Message menjadi Ticket pada flow sync. Skenario review historis, retry, counter, dan contoh kasus lokasi lama masih perlu functional verification/QA.
+
 ### DNGO19-3388 — AI Analysis Setup
 
 - **Owner:** OneBox (OB) · **Status:** READY TO DEV · **MD:** 4 MD
 
 #### Description
 
-> Menyediakan konfigurasi analisis AI di OneBox dan mengirimkan konfigurasi tersebut ke Crawler agar proses analisis menggunakan parameter yang konsisten dan dapat dikontrol per Connection.
+> Menyediakan pengaturan integrasi AI di OneBox tanpa mengambil alih keputusan teknis milik Crawler. OneBox mengatur apakah analisis AI digunakan untuk suatu tenant/Connection, mendefinisikan struktur output yang wajib dikembalikan, dan memastikan hasil tersebut dapat dipakai secara konsisten oleh Review Detail, AI Insights, dan Report.
+>
+> **Keputusan ownership:**
+> - **Crawler:** memilih model/provider, prompt runtime, batching, retry, dan cara eksekusi analisis.
+> - **OneBox:** mengatur enable/disable, kebutuhan output, validasi struktur response, default/fallback tampilan, serta penggunaan hasil analisis dalam workflow OneBox.
 >
 > **Scope:**
-> - Menentukan kontrak parameter `ai_enabled`, `model`, `prompt_version`, dan `threshold`.
-> - Menampilkan parameter pada halaman AI Analysis Setup.
-> - Menyimpan parameter pada `Connection.Options`.
-> - Mengirimkan parameter melalui worklist ke Crawler.
+> - Menentukan kontrak `ai_enabled` dan `output_schema_version` beserta default yang aman.
+> - Menentukan struktur output minimum: `analysis_status`, `sentiment`, `urgency`, `issue_category`, `summary`, `recommended_action`, `analyzed_at`, dan informasi error yang aman bila analisis gagal.
+> - Menampilkan pengaturan yang menjadi wewenang OneBox pada halaman AI Analysis Setup.
+> - Menyimpan pengaturan OneBox tanpa menimpa option Connection lainnya.
+> - Mengirim `ai_enabled` dan versi kontrak output melalui worklist atau kontrak integrasi yang disepakati.
 > - Menangani Connection lama yang belum memiliki konfigurasi AI.
-> - Menjalankan klasifikasi berbasis `Service\Ruling` sebelum proses AI.
-> - Menggunakan rule yang sudah tersedia tanpa membuat sistem rule baru.
+> - Memvalidasi output Crawler sebelum hasil ditampilkan atau digunakan oleh feature OneBox.
+> - Menjalankan klasifikasi bisnis berbasis `Service\Ruling` pada pipeline OneBox tanpa membuat sistem rule baru dan tanpa menentukan model Crawler.
 >
 > **Acceptance Criteria:**
 > - Admin dapat mengaktifkan atau menonaktifkan analisis AI.
-> - Admin dapat memilih model dan prompt version yang valid serta mengatur threshold.
-> - Parameter divalidasi sebelum disimpan dan tersimpan per Connection.
-> - Worklist mengirim parameter menggunakan nama dan tipe data yang telah disepakati.
+> - Admin tidak perlu dan tidak dapat memilih model/provider Crawler dari scope OneBox ini.
+> - Pengaturan OneBox divalidasi sebelum disimpan dan tersimpan pada scope tenant/Connection yang benar.
+> - Worklist atau kontrak integrasi mengirim `ai_enabled` dan `output_schema_version` menggunakan nama dan tipe data yang disepakati.
 > - Connection lama menggunakan nilai default yang aman.
 > - Menonaktifkan AI tidak menghentikan proses crawl.
-> - `Service\Ruling` dijalankan sebelum proses AI.
+> - Output Crawler yang valid dapat dibaca dengan struktur yang sama oleh Review Detail, AI Insights, dan Report.
+> - Output tidak valid atau gagal tidak ditampilkan sebagai hasil final; status dan fallback-nya jelas.
+> - `Service\Ruling` diterapkan pada pipeline bisnis OneBox tanpa mengubah model atau prompt runtime Crawler.
 >
 > **Out of Scope:**
+> - Pemilihan model/provider AI.
+> - Pengaturan prompt runtime dan parameter inferensi Crawler.
 > - Antrean analisis AI di Crawler.
 > - Perhitungan `tokens_used`.
 > - Perbaikan koneksi LLM lokal.
@@ -323,43 +427,52 @@
 
 **Summary**
 
-`VOC - AI Analysis Setup - Define AI Configuration Contract`
+`VOC - AI Analysis Setup - Define AI Ownership and Output Contract`
 
 **Description**
 
-> Definisikan kontrak konfigurasi AI antara OneBox dan Crawler untuk parameter `ai_enabled`, `model`, `prompt_version`, dan `threshold`.
+> Definisikan batas tanggung jawab OneBox dan Crawler serta kontrak output analisis yang stabil untuk seluruh feature OneBox.
 >
 > **Scope:**
-> - Tentukan tipe data, nilai default, dan nilai yang diperbolehkan untuk setiap parameter.
-> - Tentukan perilaku ketika parameter belum tersedia.
+> - Dokumentasikan bahwa model, provider, prompt runtime, dan strategi eksekusi dipilih oleh Crawler.
+> - Tentukan tipe data dan default untuk `ai_enabled` dan `output_schema_version`.
+> - Definisikan field output minimum: status, sentiment, urgency, category, summary, recommended action, waktu analisis, dan error metadata yang aman.
+> - Tentukan enum/nilai yang diperbolehkan untuk sentiment, urgency, dan status analisis.
+> - Tentukan perilaku ketika field belum tersedia, output tidak valid, atau versi schema belum dikenali.
 > - Tentukan perilaku ketika `ai_enabled=false`.
 >
 > **Acceptance Criteria:**
-> - Nama dan tipe data seluruh parameter terdokumentasi.
-> - Nilai default, daftar model, format threshold, dan perilaku Connection lama disepakati.
+> - Matriks ownership OneBox dan Crawler terdokumentasi dan disepakati kedua tim.
+> - Nama, tipe data, enum, versi, serta field wajib/opsional pada output terdokumentasi.
+> - Nilai default dan perilaku Connection lama disepakati.
+> - Tidak ada model atau prompt runtime yang dikunci oleh konfigurasi OneBox.
 > - Tim OneBox dan Crawler menggunakan kontrak yang sama.
 
 #### Subtask 2
 
 **Summary**
 
-`VOC - AI Analysis Setup - Persist and Distribute AI Configuration`
+`VOC - AI Analysis Setup - Persist AI Policy and Validate Crawler Output`
 
 **Description**
 
-> Implementasikan form, penyimpanan, dan distribusi konfigurasi AI melalui worklist.
+> Implementasikan pengaturan AI yang menjadi wewenang OneBox, distribusikan flag dan versi kontrak, lalu validasi output Crawler sebelum digunakan feature lain.
 >
 > **Scope:**
-> - Tampilkan dan simpan konfigurasi AI pada `Connection.Options`.
-> - Muat konfigurasi ketika halaman dibuka kembali.
-> - Sertakan konfigurasi pada response worklist.
+> - Tampilkan dan simpan `ai_enabled` serta `output_schema_version` pada tempat konfigurasi yang disepakati.
+> - Muat pengaturan ketika halaman dibuka kembali.
+> - Sertakan flag dan versi kontrak pada response worklist/integrasi.
 > - Terapkan default untuk Connection yang belum memiliki konfigurasi.
+> - Validasi field wajib dan enum hasil analisis dari Crawler.
+> - Simpan atau tampilkan `analysis_status` yang jelas untuk completed, pending, failed, skipped, dan invalid output.
 >
 > **Acceptance Criteria:**
-> - Konfigurasi dapat disimpan dan diedit.
-> - Update konfigurasi AI tidak menghapus option Connection lainnya.
-> - Worklist mengembalikan parameter sesuai kontrak.
+> - Pengaturan dapat disimpan, diedit, dan dibaca kembali.
+> - Update pengaturan AI tidak menghapus option Connection lainnya.
+> - Worklist/integrasi mengembalikan flag dan versi kontrak sesuai kesepakatan.
 > - Connection lama mendapatkan default yang aman.
+> - Output valid dapat dipakai oleh feature OneBox tanpa mapping berbeda-beda.
+> - Output invalid/gagal memiliki status jelas dan tidak dianggap completed.
 > - API key atau credential tidak ikut dikirim sebagai parameter konfigurasi.
 
 #### Subtask 3
@@ -370,19 +483,22 @@
 
 **Description**
 
-> Integrasikan klasifikasi berbasis `Service\Ruling` sebelum proses analisis AI agar rule bisnis yang tersedia diterapkan terlebih dahulu.
+> Integrasikan klasifikasi bisnis berbasis `Service\Ruling` pada pipeline OneBox setelah data review diterima, tanpa mengambil alih proses analisis atau pemilihan model di Crawler.
 >
 > **Scope:**
 > - Gunakan `Service\Ruling` yang sudah tersedia.
-> - Jalankan rule sebelum proses AI.
+> - Jalankan rule pada titik pipeline OneBox yang disepakati sebelum hasil dipakai untuk keputusan workflow/Ticket.
 > - Gunakan struktur hasil klasifikasi yang konsisten.
 > - Pastikan alur pembuatan Ticket tetap berfungsi ketika AI dinonaktifkan.
 >
 > **Acceptance Criteria:**
-> - `Service\Ruling` dijalankan sebelum AI.
+> - `Service\Ruling` dijalankan pada pipeline OneBox sesuai urutan yang disepakati.
 > - Tidak dibuat service ruling baru yang menduplikasi implementasi existing.
 > - Hasil rule tersimpan atau diteruskan menggunakan struktur yang disepakati.
 > - Proses Ticket tetap berfungsi ketika AI tidak aktif.
+>
+> **Status audit 3 Agustus 2026:**
+> - Branch 3388 belum memiliki implementasi unik dan halaman AI Analysis di `feature/voc` masih memakai data/aksi simulasi. Seluruh subtask di atas masih perlu implementasi dan pengujian.
 
 ### DNGO19-3407 — Enhance AI Analysis
 
@@ -399,45 +515,45 @@
 
 > Meningkatkan performa, kualitas, efisiensi, dan reliability proses AI Analysis yang saat ini masih membutuhkan waktu lama.
 >
-> Pekerjaan mencakup evaluasi alur analisis yang berjalan saat ini, optimasi proses dan pemanggilan API AI, serta evaluasi model yang digunakan agar hasil analisis tetap akurat dengan waktu proses dan penggunaan resource yang lebih efisien.
+> Pekerjaan mencakup evaluasi alur integrasi analisis, pengurangan request yang tidak diperlukan, validasi output, dan monitoring dari sisi OneBox. Evaluasi serta pemilihan model tetap dikerjakan dan diputuskan oleh tim Crawler.
 >
 > **OneCloud Boundary:**
-> - Branch DNGO19-3407 di OneCloud menangani orchestration, konfigurasi, pemilihan review yang perlu dianalisis, optimasi request ke service AI/Crawler, validasi response, dan monitoring dari sisi OneBox.
-> - Eksekusi LLM dan perubahan runtime/model Python tetap berada di service VoC/Crawler. Jika benchmark mengharuskan perubahan di Crawler, buat linked work item dan branch Crawler terpisah; jangan memasukkan perubahan dua repository ke branch OneCloud ini.
+> - Branch DNGO19-3407 di OneCloud menangani orchestration integrasi, pemilihan review yang perlu diminta hasilnya, pengurangan request berulang, validasi response, kompatibilitas schema, dan monitoring dari sisi OneBox.
+> - Pemilihan model/provider, prompt runtime, batching inference, serta perubahan runtime Python tetap berada di service VoC/Crawler. Buat linked work item dan branch Crawler terpisah untuk pekerjaan tersebut; jangan memasukkan perubahan dua repository ke branch OneCloud ini.
 >
 > **Scope:**
 > - Ukur baseline proses AI Analysis saat ini, termasuk queue time, waktu proses per review/batch, waktu respons API, jumlah token, error rate, dan jumlah retry.
 > - Identifikasi bottleneck pada antrean, preprocessing, pemanggilan API AI, parsing response, dan penyimpanan hasil.
 > - Optimalkan logika pemanggilan API agar hanya review yang baru, berubah, atau belum memiliki hasil valid yang dianalisis.
 > - Terapkan idempotency dan deduplication agar retry atau trigger berulang tidak menghasilkan pemanggilan API dan pencatatan usage ganda.
-> - Evaluasi batching, concurrency, rate limit, timeout, retry, dan exponential backoff sesuai kemampuan provider/model.
-> - Evaluasi model yang digunakan saat ini dan bandingkan dengan kandidat model lain berdasarkan kualitas hasil, latency, stabilitas, kebutuhan resource, dan biaya/token.
-> - Perbaiki prompt, preprocessing, atau parsing response apabila diperlukan untuk menjaga output tetap mengikuti schema sentiment, urgency, category, summary, dan recommended action.
-> - Tambahkan monitoring untuk durasi proses, jumlah request, token usage, retry, failure, dan model yang digunakan.
-> - Sediakan mekanisme rollback atau fallback apabila model atau konfigurasi baru mengalami masalah.
+> - Evaluasi timeout, retry, backoff, caching, dan idempotency pada pemanggilan OneBox ke service Crawler.
+> - Koordinasikan benchmark model melalui linked work item Crawler; OneBox menerima hasil keputusan dan memvalidasi kompatibilitas outputnya.
+> - Validasi dan normalisasi response agar tetap mengikuti schema sentiment, urgency, category, summary, dan recommended action.
+> - Tambahkan monitoring untuk durasi integrasi, jumlah request, retry, failure, schema version, dan metadata model yang dilaporkan Crawler tanpa menjadikannya konfigurasi pilihan OneBox.
+> - Sediakan fallback tampilan/proses ketika output tidak valid atau service analisis bermasalah.
 >
 > **Acceptance Criteria:**
 > - Baseline performa dan bottleneck proses AI Analysis terdokumentasi.
 > - Target improvement untuk latency, throughput, error rate, dan token usage disepakati sebelum implementasi optimasi.
-> - Pemilihan model didukung hasil benchmark menggunakan dataset review yang representatif.
+> - Tim Crawler mendokumentasikan pemilihan model berdasarkan benchmark menggunakan dataset review yang representatif; OneBox menyetujui kompatibilitas struktur outputnya.
 > - Proses setelah optimasi menunjukkan improvement terukur dibandingkan baseline berdasarkan target yang disepakati.
 > - Review yang sudah memiliki hasil valid tidak dianalisis ulang tanpa alasan yang jelas.
 > - Retry tidak menghasilkan duplicate analysis, duplicate API call yang tidak diperlukan, atau duplicate usage record.
 > - Error yang dapat di-retry menggunakan retry dan backoff; error permanen tidak diulang tanpa batas.
 > - Response model divalidasi sebelum disimpan.
 > - Output tetap kompatibel dengan field sentiment, urgency, category, summary, dan recommended action yang digunakan OneBox.
-> - Model dan konfigurasi baru dapat di-disable atau dikembalikan ke konfigurasi sebelumnya.
+> - OneBox dapat menonaktifkan penggunaan AI atau menangani output gagal tanpa menentukan model fallback Crawler.
 > - Log tidak menyimpan API key, credential, atau teks review lengkap.
 >
 > **Dependency:**
-> - Kontrak parameter AI dari DNGO19-3388.
+> - Kontrak ownership dan struktur output AI dari DNGO19-3388.
 > - Antrean analisis AI di Crawler.
 > - Data `tokens_used` dan status analisis.
 > - Dataset review representatif untuk benchmark kualitas.
 >
 > **Out of Scope:**
 > - Perubahan tampilan AI Insights.
-> - Perubahan halaman AI Analysis Setup di OneBox, kecuali diperlukan penyesuaian kontrak parameter.
+> - Perubahan halaman AI Analysis Setup di OneBox, kecuali diperlukan penyesuaian kontrak output.
 > - Perubahan runtime/model Python, queue worker, atau provider client di repository Crawler; pekerjaan tersebut harus menggunakan linked work item terpisah.
 > - Training custom model dari awal tanpa persetujuan Product dan technical review.
 > - Perubahan kategori bisnis tanpa persetujuan Product.
@@ -498,28 +614,27 @@
 
 **Summary**
 
-`VOC - Enhance AI Analysis - Evaluate AI Model and Integration Contract`
+`VOC - Enhance AI Analysis - Coordinate Model Benchmark and Validate Output Compatibility`
 
 **Description**
 
-> Evaluasi model AI yang digunakan saat ini dan kandidat model lain dari sisi kebutuhan OneBox, lalu finalisasi kontrak integrasi untuk model yang memberikan keseimbangan terbaik antara kualitas hasil, latency, stabilitas, dan penggunaan resource.
+> Koordinasikan benchmark model yang dikerjakan oleh tim Crawler, lalu validasi bahwa model yang mereka pilih tetap menghasilkan output yang kompatibel dengan kebutuhan OneBox.
 >
 > **Scope:**
-> - Dokumentasikan model dan konfigurasi yang digunakan saat ini.
-> - Tentukan kandidat model yang kompatibel dengan kebutuhan deployment.
-> - Jalankan benchmark menggunakan dataset review yang telah disepakati.
-> - Bandingkan kualitas sentiment, urgency, category, summary, dan recommended action.
-> - Bandingkan latency, token usage, error rate, kebutuhan resource, dan biaya apabila menggunakan provider berbayar.
-> - Tentukan model utama dan fallback berdasarkan hasil benchmark.
-> - Dokumentasikan perubahan yang dapat dilakukan melalui konfigurasi OneCloud dan perubahan yang memerlukan linked work item di Crawler.
+> - Buat linked work item Crawler untuk baseline, kandidat model, benchmark, dan pemilihan model/fallback.
+> - Sepakati dataset serta indikator kualitas bisnis yang perlu dipertahankan.
+> - Terima hasil benchmark kualitas, latency, token usage, error rate, kebutuhan resource, dan biaya dari tim Crawler.
+> - Uji output model terpilih terhadap schema OneBox.
+> - Pastikan perubahan model tidak mengharuskan OneBox menyimpan konfigurasi runtime Crawler.
+> - Dokumentasikan metadata model yang boleh dikirim sebagai informasi read-only untuk audit/monitoring.
 >
 > **Acceptance Criteria:**
-> - Model existing dan seluruh kandidat diuji menggunakan dataset yang sama.
-> - Hasil benchmark terdokumentasi dan dapat dibandingkan.
-> - Model dipilih berdasarkan evidence, bukan hanya asumsi.
-> - Model terpilih memenuhi schema output yang dibutuhkan OneBox.
+> - Linked work item Crawler tersedia dan memiliki owner yang jelas.
+> - Model existing dan kandidat diuji oleh tim Crawler menggunakan dataset yang sama.
+> - Hasil benchmark terdokumentasi dan keputusan model dibuat oleh tim Crawler berdasarkan evidence.
+> - Output model terpilih lolos validasi schema OneBox.
 > - Penurunan kualitas yang signifikan tidak diterima hanya untuk mengejar kecepatan.
-> - Model dapat diganti atau dikembalikan melalui konfigurasi tanpa perubahan data historis.
+> - Pergantian model di Crawler tidak mengubah data historis dan tidak memerlukan field output baru tanpa versioning.
 > - Perubahan runtime/model di Crawler tidak dimasukkan ke branch OneCloud DNGO19-3407.
 
 #### Subtask 4
@@ -530,20 +645,20 @@
 
 **Description**
 
-> Tambahkan observability dan mekanisme pengamanan agar performa AI Analysis dapat dipantau dan perubahan model atau optimasi dapat dikembalikan dengan aman.
+> Tambahkan observability dan mekanisme pengamanan agar integrasi AI Analysis dapat dipantau. Rollback model/runtime tetap dilakukan oleh Crawler, sedangkan OneBox dapat menonaktifkan penggunaan AI atau kembali ke alur integrasi sebelumnya.
 >
 > **Scope:**
-> - Catat durasi antrean, durasi proses, API latency, jumlah request, retry, failure, token usage, dan model yang digunakan.
+> - Catat metrik yang dikirim Crawler: durasi antrean/proses, API latency, jumlah request, retry, failure, token usage, dan metadata model read-only.
 > - Tambahkan correlation ID atau analysis job ID untuk menelusuri satu proses tanpa menyimpan data sensitif.
 > - Tambahkan alert atau indikator untuk failure rate tinggi, antrean menumpuk, atau latency melewati target.
-> - Sediakan feature flag, configuration switch, atau prosedur rollback untuk kembali ke model dan alur sebelumnya.
+> - Sediakan feature flag OneBox untuk menonaktifkan penggunaan AI/flow baru; dokumentasikan bahwa rollback model dilakukan pada linked work item Crawler.
 >
 > **Acceptance Criteria:**
 > - Metrik utama dapat dipantau per run atau periode.
 > - Failure dapat ditelusuri menggunakan job/correlation ID.
 > - Log tidak memuat API key, credential, atau teks review lengkap.
 > - Kondisi antrean menumpuk dan error rate tinggi dapat diketahui sebelum dilaporkan user.
-> - Model atau optimasi baru dapat dinonaktifkan tanpa menghapus hasil analisis historis.
+> - Penggunaan AI atau flow integrasi baru dapat dinonaktifkan tanpa menghapus hasil historis; model dipulihkan oleh tim Crawler bila diperlukan.
 > - Prosedur rollback terdokumentasi dan berhasil diuji.
 
 ### DNGO19-3420 — Fetch Jobs Crawl
@@ -575,6 +690,8 @@
 > - Simpan status job: queued, running, success, partial_success, failed, atau cancelled apabila cancel didukung.
 > - Simpan hasil proses berupa fetched, inserted, duplicate/deduped, dan failed.
 > - Setelah crawl selesai, jalankan atau hubungkan proses sinkronisasi review sesuai mekanisme delta yang telah disepakati.
+> - Kelola safe checkpoint/cursor agar delta sync hanya maju setelah seluruh halaman berhasil diproses.
+> - Dukung catch-up/reconciliation untuk review lama yang belum masuk OneBox, kemudian teruskan Message tanpa Ticket ke flow DNGO19-3387.
 > - Catat error dan metadata teknis yang aman untuk troubleshooting.
 > - Sediakan fetch log atau job detail untuk melihat hasil proses.
 >
@@ -586,6 +703,8 @@
 > - Job memiliki status yang dapat dipantau dari awal sampai selesai.
 > - Hasil job mencatat jumlah review fetched, inserted, deduped, dan failed.
 > - Job yang diulang tidak menyebabkan review tersinkron menjadi Ticket ganda.
+> - Checkpoint hanya maju setelah seluruh halaman dan review pada siklus tersebut berhasil diproses.
+> - Review lama dapat ditarik ulang secara aman dan item yang sudah ada dihitung sebagai duplicate/deduped.
 > - Dry run tidak menyimpan review atau mengubah data produksi.
 > - Error pada satu lokasi tidak menyebabkan status lokasi lain menjadi tidak jelas.
 > - Timeout dan error sementara ditangani menggunakan retry policy yang terbatas.
@@ -599,7 +718,8 @@
 >
 > **Out of Scope:**
 > - Penjadwalan otomatis tiga window; ditangani DNGO19-3390 Crawl Scheduler.
-> - Delta Sync review ke OneBox; ditangani DNGO19-3346.
+> - Penentuan lokasi baru yang perlu targeted backfill; trigger-nya ditangani DNGO19-3385, sedangkan mekanisme pull aman tetap memakai flow DNGO19-3420.
+> - Pembuatan/aksi kelola Ticket dari Message review hasil rekonsiliasi; ditangani DNGO19-3387.
 > - Implementasi queue, worker, Selenium, atau connector scraping di Crawler.
 > - AI Analysis setelah review tersimpan.
 > - Tampilan AI Insights.
@@ -676,6 +796,8 @@
 > - Setelah crawl berhasil atau partial success, jalankan proses delta pull/sinkronisasi review sesuai kontrak.
 > - Pastikan dry run tidak menjalankan penyimpanan atau sinkronisasi review.
 > - Tangani job gagal tanpa memajukan checkpoint secara tidak aman.
+> - Simpan `checkpoint_cursor` hanya setelah siklus halaman selesai tanpa kegagalan.
+> - Simpan posisi sementara secara aman apabila proses berhenti sebelum seluruh halaman selesai.
 >
 > **Acceptance Criteria:**
 > - Satu trigger OneBox menghasilkan satu job Crawler sesuai idempotency policy.
@@ -685,6 +807,7 @@
 > - Review yang sudah tersinkron tidak dibuat menjadi Ticket ganda.
 > - Dry run tidak menyimpan atau menyinkronkan review.
 > - Job gagal tidak memajukan checkpoint.
+> - Kegagalan pemrosesan review menyebabkan siklus berikutnya mengulang dari checkpoint aman terakhir.
 
 #### Subtask 4
 
@@ -710,6 +833,38 @@
 > - Job yang tidak retryable ditolak ketika diminta retry.
 > - Cancel tidak meninggalkan job pada status running tanpa batas.
 > - Log tidak memuat credential atau raw review text lengkap.
+
+#### Subtask 5
+
+**Summary**
+
+`VOC - Fetch Jobs Crawl - Reconcile and Import Legacy Reviews`
+
+**Description**
+
+> Gunakan flow Fetch Jobs/delta import untuk menarik review historis yang belum tersedia di OneBox, termasuk lokasi lama yang sebelumnya belum menghasilkan Ticket.
+>
+> **Pembagian tanggung jawab:**
+> - DNGO19-3420 mengambil review dari Crawler, melakukan deduplication, menyimpan Message, dan melaporkan counter.
+> - DNGO19-3387 memproses Message tanpa Ticket agar dapat dikelola melalui Review Detail.
+>
+> **Scope:**
+> - Tentukan lokasi dan periode yang perlu direkonsiliasi.
+> - Jalankan pull berbasis lokasi/periode atau catch-up dari checkpoint aman.
+> - Gunakan kunci idempotency/deduplication review yang sama dengan delta reguler.
+> - Laporkan `fetched`, `inserted`, `deduped`, `failed`, dan jumlah Message yang masih menunggu Ticket.
+> - Dukung retry/resume tanpa menarik ulang seluruh data yang sudah sukses bila tidak diperlukan.
+>
+> **Acceptance Criteria:**
+> - Review historis yang belum ada dapat masuk sebagai Message OneBox.
+> - Review yang sudah ada dilewati dan dihitung sebagai deduped, bukan dibuat ulang.
+> - Kegagalan sebagian tidak memajukan checkpoint secara tidak aman.
+> - Retry/resume tidak membuat Message atau Ticket ganda.
+> - Message tanpa Ticket dapat diteruskan ke flow rekonsiliasi DNGO19-3387.
+> - Hasil per lokasi dan ringkasan error dapat ditelusuri.
+>
+> **Status audit 3 Agustus 2026:**
+> - `feature/voc` sudah memiliki enqueue crawl, polling batch, import, deduplication, pemrosesan pending Message, dan safe checkpoint. Branch 3420 masih memiliki 2 commit tambahan; perlu review/merge serta QA skenario legacy review dan retry/resume.
 
 ### DNGO19-3389 — AI Insights
 
@@ -738,7 +893,7 @@
 > **Dependency:**
 > - DNGO19-3388 AI Analysis Setup.
 > - Data hasil analisis dari Crawler.
-> - Struktur menu VoC dari DNGO19-3346.
+> - Struktur menu VoC pada `feature/voc` telah lolos verifikasi fungsi, route, urutan, dan permission.
 >
 > **Out of Scope:**
 > - Trigger dan rerun analisis.
@@ -828,7 +983,7 @@
 > **Dependency:**
 > - Endpoint enqueue non-blocking dan worker crawl di Crawler.
 > - Endpoint atau mekanisme monitoring status batch.
-> - Delta Sync pada DNGO19-3346.
+> - Delta Sync dan safe checkpoint pada DNGO19-3420.
 >
 > **Out of Scope:**
 > - Membuat scheduler kedua di Crawler.
@@ -1093,7 +1248,7 @@
 > - DNGO19-3386 Master Data Competitors.
 > - Endpoint `competitor_reviews` dari Crawler.
 > - Consumer review kompetitor di OneBox.
-> - Struktur menu dari DNGO19-3346.
+> - Struktur menu pada `feature/voc` telah lolos verifikasi fungsi, route, urutan, dan permission.
 >
 > **Out of Scope:**
 > - CRUD kompetitor.
@@ -1176,118 +1331,25 @@
 
 ---
 
-## Branch 3346 — Cakupan yang Dikerjakan di Sana (bukan ticket terpisah)
+## Redistribusi Scope Eks-DNGO19-3346
 
-`feature/DNGO19-3346_Media-Crawler-Google-Business-Review` menanggung 2 hal yang sengaja **tidak** dipecah jadi ticket sendiri:
+`DNGO19-3346` tidak lagi digunakan sebagai bucket untuk pekerjaan lanjutan. Scope yang sebelumnya ditulis di bawah branch tersebut dipindahkan sebagai berikut:
 
-### Description DNGO19-3346
+| Scope lama | Ticket yang bertanggung jawab sekarang | Status audit 3 Agustus 2026 |
+|---|---|---|
+| Restrukturisasi menu VoC | `feature/voc` / integration work | Dinyatakan implemented; masih perlu verifikasi struktur Transaksi/Output/Setting, route, urutan, seed idempotent, dan permission di Dev. |
+| Delta pull dan safe checkpoint | DNGO19-3420 — Fetch Jobs Crawl | Implementasi cursor/checkpoint dan deduplication terdeteksi; perlu merge sisa commit dan QA end-to-end. |
+| Targeted backfill lokasi baru | DNGO19-3385 — Master-Data-Locations | Belum teridentifikasi sebagai implementasi khusus; masih remaining. |
+| Menarik/reconcile review historis | DNGO19-3420 — Fetch Jobs Crawl | Flow catch-up/import tersedia; skenario legacy location dan retry/resume perlu QA. |
+| Membuat/menghubungkan Ticket untuk review lama | DNGO19-3387 — Review Manage Actions | Flow pending Message → Ticket tersedia; idempotency dan kasus review lama perlu QA. |
 
-> Menyediakan fondasi navigasi VoC yang sesuai workflow Product dan mekanisme delta sync yang aman agar feature VoC lain dapat menggunakan struktur menu serta data review yang konsisten.
->
-> **Scope:**
-> - Restrukturisasi menu VoC menjadi grup Transaksi, Output, dan Setting.
-> - Mengubah seed menu dari struktur flat menjadi hierarki tiga level.
-> - Implementasi checkpoint delta pull.
-> - Targeted backfill untuk lokasi baru.
-> - Reconciliation untuk lokasi lama yang belum memiliki Ticket.
->
-> **Acceptance Criteria:**
-> - Menu VoC tampil sebagai header tersendiri dan semua submenu berada pada grup yang benar.
-> - Seed dapat dijalankan ulang tanpa duplikasi.
-> - Checkpoint hanya maju setelah seluruh halaman berhasil diproses.
-> - Lokasi baru mendapatkan histori lama sebelum masuk delta reguler.
-> - Reconciliation tidak membuat Ticket duplikat.
-> - Kegagalan sebagian tidak menghilangkan data yang belum berhasil diproses.
+**Implikasi urutan kerja terbaru:**
 
-### Subtask 1
-
-**Summary**
-
-`VOC - Media Crawler Google Business Review - Restructure VoC Navigation`
-
-**Description**
-
-> Ubah navigasi VoC dari submenu flat menjadi hierarki berdasarkan workflow Product.
->
-> **Struktur menu:**
-> - Transaksi: Ulasan, Analisis, Insight.
-> - Output: Dashboard, Report, Competitor Analysis.
-> - Setting: Setup Parameter, Master Data.
->
-> **Scope:**
-> - Perbarui `scriptdb/voc/voc_setup_all.sql`.
-> - Ubah struktur menjadi hierarki Header VoC → Grup → Sub-menu.
-> - Pertahankan route menu existing.
-> - Atur urutan menu sesuai keputusan Product.
->
-> **Acceptance Criteria:**
-> - VoC tampil sebagai header menu tersendiri.
-> - Semua submenu berada pada grup yang benar.
-> - Route existing tetap berfungsi.
-> - Seed dapat dijalankan ulang tanpa membuat menu duplikat.
-> - Perubahan hierarki tidak membuka permission baru secara tidak sengaja.
-
-### Subtask 2
-
-**Summary**
-
-`VOC - Media Crawler Google Business Review - Implement Safe Delta Checkpoint`
-
-**Description**
-
-> Implementasikan delta pull review menggunakan `checkpoint_cursor`.
->
-> **Acceptance Criteria:**
-> - Pull berikutnya melanjutkan dari checkpoint terakhir yang berhasil.
-> - Checkpoint hanya maju setelah seluruh halaman berhasil diambil dan disimpan.
-> - Kegagalan satu halaman tidak memajukan checkpoint.
-> - Retry tidak membuat Ticket duplikat.
-> - Counter `inserted`, `deduped`, dan `failed` tersedia.
-> - Cursor utuh tidak ditampilkan pada log.
-
-### Subtask 3
-
-**Summary**
-
-`VOC - Media Crawler Google Business Review - Implement Targeted Location Backfill`
-
-**Description**
-
-> Jalankan targeted backfill untuk lokasi baru yang telah memiliki review historis di Crawler sebelum lokasi masuk ke aliran delta reguler.
->
-> **Scope:**
-> - Gunakan `location_id`.
-> - Gunakan `updated_since` dengan periode historis yang sesuai.
-> - Jalankan backfill sebelum menggunakan checkpoint tenant reguler.
->
-> **Acceptance Criteria:**
-> - Lokasi baru memperoleh review historis.
-> - Review lama tidak terlewat akibat checkpoint tenant yang sudah maju.
-> - Rerun tidak membuat Ticket duplikat.
-> - Kegagalan backfill dapat dilanjutkan dengan aman.
-> - Status dan hasil backfill dapat ditelusuri.
-
-### Subtask 4
-
-**Summary**
-
-`VOC - Media Crawler Google Business Review - Reconcile Reviews Without OneBox Tickets`
-
-**Description**
-
-> Rekonsiliasi lokasi lama yang telah memiliki review di Crawler tetapi belum memiliki Ticket OneBox, termasuk kasus Bekasi.
->
-> **Acceptance Criteria:**
-> - Lokasi dan review yang terdampak dapat diidentifikasi.
-> - Review tanpa Ticket dibuat menjadi Ticket OneBox.
-> - Review yang sudah memiliki Ticket dilewati sebagai duplicate.
-> - Reconciliation tidak membuat Ticket duplikat.
-> - Hasil memiliki counter `inserted`, `deduped`, dan `failed`.
-> - Checkpoint tidak berubah secara tidak aman.
-
-**Implikasi urutan kerja:**
-- **Ticket yang nambah sub-menu baru (3388, 3389, 3390, 3396) sebaiknya menunggu restrukturisasi menu di 3346 selesai dulu**, supaya sub-menu baru langsung masuk ke grup yang benar.
-- **`Crawl Scheduler` (3390) bergantung pada Delta Sync di 3346** — cek dependency ini sebelum mulai development 3390.
+1. Verifikasi menu pada `feature/voc`; feature lain tidak perlu lagi menunggu branch 3346.
+2. Review dan integrasikan sisa commit DNGO19-3420, lalu uji crawl → polling → delta import → pending Message → Ticket.
+3. Implementasikan targeted backfill pada DNGO19-3385 dengan memakai mekanisme pull aman DNGO19-3420.
+4. Jalankan rekonsiliasi per lokasi lama dan verifikasi hasilnya melalui flow DNGO19-3387.
+5. Crawl Scheduler DNGO19-3390 baru diuji end-to-end setelah safe checkpoint DNGO19-3420 dinyatakan stabil.
 
 ---
 
@@ -1295,11 +1357,11 @@
 
 | # | Item | Kenapa masih terbuka |
 |---|---|---|
-| 1 | **Isi ticket 3393–3395** | **Hipotesis baru (perlu konfirmasi):** screenshot ticket 3385 menunjukkan subtask `DNGO19-3394 "Dev Specification : VOC : Master-Data-Locations"` — kemungkinan besar 3393/3394/3395 adalah subtask "Dev Specification" milik ticket-ticket induk (bagian dari alur spec-review sebelum status "in development"), **bukan** ticket fitur yang hilang. Kalau benar, Review-Detail dan Delta-Sync memang tidak butuh ticket sendiri (sudah sesuai keputusan digabung ke 3387 dan branch 3346). Tetap cek langsung di Jira untuk memastikan pola penomoran subtask ini konsisten di semua ticket induk. |
+| 1 | **Isi ticket 3393–3395** | **Hipotesis baru (perlu konfirmasi):** screenshot ticket 3385 menunjukkan subtask `DNGO19-3394 "Dev Specification : VOC : Master-Data-Locations"` — kemungkinan besar 3393/3394/3395 adalah subtask "Dev Specification" milik ticket-ticket induk, bukan ticket fitur yang hilang. Review Detail sudah berada di 3387, sedangkan Delta Sync sekarang berada di 3420. Tetap cek langsung di Jira untuk memastikan pola penomoran subtask ini konsisten. |
 | 2 | **Scope persis `Crawl Scheduler` (3390)** | Perlu dikonfirmasi: apakah full M4-01..05 (8MD, exceeds cap) atau sudah dipangkas. Sub-task split direkomendasikan (lihat detail 3390 di atas). |
 | 3 | **Scope persis `Competitor Analysis` (3396)** | Pastikan tidak overlap dengan `Master-Data-Competitors` (3386) — 3386 = CRUD/registrasi, 3396 = komparasi/output (asumsi dari notulen meeting, belum dikonfirmasi eksplisit). |
 | 4 | **Exception 5MD di 3387 dan 3390** | Dua ticket ini disengaja melebihi cap karena penggabungan scope yang masuk akal secara alur kerja — perlu dikomunikasikan ke Agung sebagai exception yang disadari, bukan kelalaian. |
-| 5 | **Target `Enhance AI Analysis` (DNGO19-3407)** | Jira key sudah tersedia. Target latency, throughput, error rate, token usage, kandidat model, dan dataset benchmark tetap harus difinalisasi pada Dev Specification sebelum implementasi dimulai. Jira Work Type saat ini `Task`; direkomendasikan diubah menjadi `New Feature` agar konsisten dengan feature VoC lain. |
+| 5 | **Target `Enhance AI Analysis` (DNGO19-3407)** | Jira key sudah tersedia. Target latency, throughput, error rate, dan kompatibilitas schema perlu difinalisasi. Kandidat/pemilihan model serta benchmark runtime menjadi linked work item Crawler; OneBox hanya memvalidasi output. Jira Work Type saat ini `Task`; direkomendasikan diubah menjadi `New Feature` agar konsisten dengan feature VoC lain. |
 | 6 | **Kontrak `Fetch Jobs Crawl` (DNGO19-3420)** | Jira key dan work type `New Feature` sudah tersedia. Kontrak request/response, lifecycle job, batas target review, dry run, retry, cancel, dan penggunaan `job_id` atau `batch_id` tetap harus difinalisasi pada Dev Specification. |
 
 ---
@@ -1307,6 +1369,6 @@
 ## Item yang Sudah Tidak Berlaku dari Draft Sebelumnya
 
 - ~~T1a/T1b Review-Detail + Review-Manage-Actions terpisah~~ → **digabung jadi 3387**.
-- ~~T5a Delta-Sync sebagai ticket sendiri~~ → **dikerjakan di branch 3346**.
+- ~~T5a Delta-Sync sebagai ticket sendiri/di 3346~~ → **menjadi scope DNGO19-3420 Fetch Jobs Crawl**.
 - ~~T5b/T5c Scheduling-Core + Trigger-UI terpisah~~ → jadi **3390 (Crawl Scheduler)**, kemungkinan perlu sub-task internal karena cap 5MD.
-- ~~T8 Menu Navigation Restructure sebagai ticket sendiri~~ → **dikerjakan di branch 3346**.
+- ~~T8 Menu Navigation Restructure sebagai ticket sendiri/di 3346~~ → **sudah berada di integration branch `feature/voc`; pending verification/QA**.

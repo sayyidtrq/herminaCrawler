@@ -206,7 +206,16 @@ def test_scope_is_enforced(session_factory):
 
 def test_worker_claims_and_completes_job(session_factory):
     class FakeFetchService:
-        def fetch_location(self, location_id, target):
+        def fetch_location(
+            self,
+            location_id,
+            target,
+            date_from=None,
+            date_to=None,
+            on_progress=None,
+        ):
+            if on_progress is not None:
+                on_progress(1, target)
             return {
                 "status": "success",
                 "location_id": location_id,

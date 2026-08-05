@@ -56,7 +56,7 @@ class FakeSeleniumClient:
     def __init__(self):
         self.last_metadata = {}
 
-    def fetch_reviews(self, location, limit=50):
+    def fetch_reviews(self, location, limit=50, on_progress=None):
         self.last_metadata = {
             "target_review_count": limit,
             "loaded_review_cards": 2,
@@ -68,6 +68,8 @@ class FakeSeleniumClient:
             "stopped_reason": "no_new_review_cards",
         }
         scraped_at = datetime.now().astimezone().isoformat()
+        if on_progress is not None:
+            on_progress(2, limit)
         return [
             {
                 "source": self.source_name,

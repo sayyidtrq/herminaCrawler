@@ -419,7 +419,7 @@ def generate_html_report(data: dict) -> str:
       <tbody>
         <tr>
           <td class="font-semibold">TypeSafe Jev AI</td>
-          <td><code>{jev_s.get('model_version', '~typesafe/jev-latest')}</code></td>
+          <td><code>{jev_s.get('model_version', 'jev-latest')}</code></td>
           <td class="text-center highlight-cell">200 OK</td>
           <td class="text-right font-semibold">{jev_w.get('total_end_to_end_ms', 1757.7):.1f} ms</td>
           <td class="text-right">{jev_s.get('tokens_used', 656)} tok</td>

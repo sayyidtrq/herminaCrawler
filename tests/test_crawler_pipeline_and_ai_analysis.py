@@ -97,8 +97,8 @@ def crawler_test_env(monkeypatch):
         analysis_batch_size=10,
         analysis_llm_concurrency=1,
         analysis_llm_max_retries=0,
-        jev_base_url="https://jev.mock.test/api",
-        jev_api_key="test-jev-key",
+        typesafe_base_url="https://api.typesafe.test",
+        typesafe_api_key="test-typesafe-key",
     )
 
     absa_calls = []
@@ -137,6 +137,19 @@ def crawler_test_env(monkeypatch):
         )
 
     def mock_jev_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(
+                200,
+                json={
+                    "models": [
+                        {
+                            "name": "jev-latest",
+                            "description": "Latest stable Jev model",
+                            "release_date": "2026-01-01",
+                        }
+                    ]
+                },
+            )
         data = json.loads(request.content)
         jev_calls.append(data)
         text = data.get("state", "")
@@ -171,7 +184,8 @@ def crawler_test_env(monkeypatch):
         transport=httpx.MockTransport(mock_absa_handler),
     )
     jev_http = httpx.Client(
-        base_url="https://jev.mock.test/api",
+        base_url="https://api.typesafe.test",
+        headers={"Authorization": "Bearer test-typesafe-key"},
         transport=httpx.MockTransport(mock_jev_handler),
     )
 

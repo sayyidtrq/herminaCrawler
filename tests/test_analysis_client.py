@@ -125,7 +125,7 @@ def test_jev_provider():
 
 
 def test_jev_calls_systemone_and_maps_the_response():
-    openrouter_payload = {
+    typesafe_payload = {
         "answers": {
             "sentiment": {
                 "choice": "negative",
@@ -153,12 +153,18 @@ def test_jev_calls_systemone_and_maps_the_response():
     }
 
     def handler(request):
-        assert request.url.path == "/api/v1/systemone"
-        assert json.loads(request.content)["state"] == review["review_text"]
-        return httpx.Response(200, json=openrouter_payload)
+        assert request.url.path == "/v1/systemone"
+        assert request.headers["Authorization"] == "Bearer test-typesafe-key"
+        request_payload = json.loads(request.content)
+        assert request_payload["state"] == review["review_text"]
+        assert request_payload["model"] == "jev-latest"
+        assert request_payload["questions"]["sentiment"]["type"] == "choice"
+        assert request_payload["questions"]["is_safety_issue"]["type"] == "noul"
+        return httpx.Response(200, json=typesafe_payload)
 
     http_client = httpx.Client(
-        base_url="https://openrouter.test/api",
+        base_url="https://api.typesafe.test",
+        headers={"Authorization": "Bearer test-typesafe-key"},
         transport=httpx.MockTransport(handler),
     )
     result = JevAiClient(settings(), http_client=http_client).analyze_review(review)

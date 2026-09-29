@@ -37,26 +37,28 @@ class JevAiClient(GeminiClientBase):
         self, settings: Settings, *, http_client: httpx.Client | None = None
     ) -> None:
         self.settings = settings
-        self.model_name = settings.jev_engine_version
+        self.model_name = settings.typesafe_model
         self.last_usage: dict[str, int] = {}
         headers = {}
-        if settings.jev_api_key:
-            headers["Authorization"] = f"Bearer {settings.jev_api_key}"
+        if settings.typesafe_api_key:
+            headers["Authorization"] = f"Bearer {settings.typesafe_api_key}"
         self._http = http_client or httpx.Client(
-            base_url=settings.jev_base_url.rstrip("/"),
-            timeout=settings.jev_timeout_seconds,
+            base_url=settings.typesafe_base_url.rstrip("/"),
+            timeout=settings.typesafe_timeout_seconds,
             headers=headers,
         )
 
     def list_models(self) -> list[str]:
-        # TypeSafe Jev doesn't have a dynamic engines endpoint listed in standard docs,
-        # but we can just return the configured model.
-        return [self.model_name]
+        response = self._http.get("/v1/models")
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"TypeSafe returned HTTP {response.status_code}: {response.text}"
+            )
+        return [str(model["name"]) for model in response.json().get("models", [])]
 
     def analyze_review(self, review: dict) -> dict:
         text = review.get("review_text") or ""
 
-        # We form the questions for TypeSafe System One API
         payload = {
             "state": text,
             "model": self.model_name,
@@ -106,39 +108,29 @@ class JevAiClient(GeminiClientBase):
             },
         }
 
-        # Note: we use "" empty path because the base_url usually includes /v1/systemone
-        # If the base url is just https://api.typesafe.ai, we might need the path.
-        # Let's check if the base URL ends with systemone.
-        path = ""
-        if not self._http.base_url.path.endswith("systemone"):
-            path = "/v1/systemone"
-
         response = self._http.post(
-            path,
+            "/v1/systemone",
             json=payload,
         )
         if response.status_code >= 400:
             raise RuntimeError(
-                f"Jev AI returned HTTP {response.status_code}: {response.text}"
+                f"TypeSafe returned HTTP {response.status_code}: {response.text}"
             )
 
         result_payload = response.json()
         usage = result_payload.get("usage", {})
-        input_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
-        output_tokens = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
-        total_tokens = int(usage.get("total_tokens") or (input_tokens + output_tokens))
-        cost = float(usage.get("cost") or 0.0)
+        input_tokens = int(usage.get("input_tokens") or 0)
+        output_tokens = int(usage.get("output_tokens") or 0)
+        total_tokens = input_tokens + output_tokens
         self.last_usage = {
             "prompt_tokens": input_tokens,
             "completion_tokens": output_tokens,
             "total_tokens": total_tokens,
-            "cost": cost,
         }
         return self._to_analysis(result_payload, review)
 
     @staticmethod
     def _to_analysis(payload: dict, review: dict) -> dict:
-        # payload structure: {"answers": {"sentiment": {"choice": "positive", "confidence": 0.9...}, ...}}
         answers = payload.get("answers", {})
 
         # Extract sentiment

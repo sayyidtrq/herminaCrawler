@@ -16,8 +16,8 @@ if ! grep -qE '^APIFY_API_TOKENS=.+' "$ENV_FILE" 2>/dev/null; then
 fi
 
 if grep -qiE '^ANALYSIS_PROVIDER=jev$' "$ENV_FILE" 2>/dev/null \
-  && ! grep -qE '^JEV_API_KEY=.+' "$ENV_FILE" 2>/dev/null; then
-  echo "ERROR: JEV_API_KEY is required when ANALYSIS_PROVIDER=jev." >&2
+  && ! grep -qE '^TYPESAFE_API_KEY=.+' "$ENV_FILE" 2>/dev/null; then
+  echo "ERROR: TYPESAFE_API_KEY is required when ANALYSIS_PROVIDER=jev." >&2
   exit 1
 fi
 

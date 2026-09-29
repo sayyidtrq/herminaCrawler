@@ -145,8 +145,8 @@ def setup_environment():
         analysis_batch_size=10,
         analysis_llm_concurrency=1,
         analysis_llm_max_retries=0,
-        jev_base_url="https://jev.mock.test/api",
-        jev_api_key="mock-jev-key-xyz",
+        typesafe_base_url="https://api.typesafe.test",
+        typesafe_api_key="mock-typesafe-key-xyz",
     )
 
     def mock_absa_handler(request: httpx.Request) -> httpx.Response:
@@ -210,7 +210,7 @@ def setup_environment():
         transport=httpx.MockTransport(mock_absa_handler),
     )
     jev_http = httpx.Client(
-        base_url="https://jev.mock.test/api",
+        base_url="https://api.typesafe.test",
         transport=httpx.MockTransport(mock_jev_handler),
     )
 

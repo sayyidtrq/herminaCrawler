@@ -5,8 +5,8 @@ from app.integrations.jev_client import JevAiClient
 from app.config import get_settings
 
 def main():
-    # Simulate a raw payload returned by OpenRouter for TypeSafe Jev
-    openrouter_payload = {
+    # Simulate a raw payload returned by TypeSafe Jev.
+    typesafe_payload = {
         "answers": {
             "sentiment": {
                 "choice": "negative",
@@ -34,7 +34,7 @@ def main():
 
     # Generate the standardized analysis output
     client = JevAiClient(get_settings())
-    result = client._to_analysis(openrouter_payload, review)
+    result = client._to_analysis(typesafe_payload, review)
 
     now = datetime.now(timezone.utc)
     

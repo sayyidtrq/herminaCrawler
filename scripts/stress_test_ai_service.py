@@ -64,7 +64,7 @@ MAGENTA = "\033[35m"
 DIM = "\033[2m"
 
 # Price reference (per 1M tokens or per request)
-# Jev AI via OpenRouter: ~$0.0000319 per query or ~$0.035 / 1M prompt, $0.14 / 1M completion
+# TypeSafe Jev 1.13: $0.042 / 1M input tokens; output tokens are free.
 # Gemini 2.5 Flash Lite: $0.075 / 1M prompt, $0.30 / 1M completion
 USD_TO_IDR = 17_500.0
 
@@ -132,8 +132,7 @@ def calculate_cost(provider: str, prompt_tokens: int, completion_tokens: int, ra
     if raw_cost > 0.0:
         return raw_cost
     if provider == "jev":
-        # TypeSafe Jev: ~$0.035 / 1M prompt, ~$0.14 / 1M completion
-        return (prompt_tokens * 0.035 / 1_000_000.0) + (completion_tokens * 0.14 / 1_000_000.0)
+        return prompt_tokens * 0.042 / 1_000_000.0
     elif provider == "openai":
         # Official OpenAI GPT-4o-mini rates: $0.15 / 1M prompt, $0.60 / 1M completion
         return (prompt_tokens * 0.15 / 1_000_000.0) + (completion_tokens * 0.60 / 1_000_000.0)
@@ -506,7 +505,7 @@ def run_concurrent_stress_test(
         timestamp=datetime.now(timezone.utc).isoformat(),
         provider=provider,
         model_name=(
-            "~typesafe/jev-latest" if provider == "jev" else
+            "jev-latest (TypeSafe)" if provider == "jev" else
             "gpt-4o-mini (OpenAI)" if provider == "openai" else
             "absa-v14 (on-premise)"
         ),
@@ -673,10 +672,10 @@ def main():
 
     args = parser.parse_args()
 
-    # Ensure JEV_API_KEY is available in environment
+    # Ensure TYPESAFE_API_KEY is available in environment.
     settings = get_settings()
-    if not os.getenv("JEV_API_KEY") and settings.jev_api_key:
-        os.environ["JEV_API_KEY"] = settings.jev_api_key
+    if not os.getenv("TYPESAFE_API_KEY") and settings.typesafe_api_key:
+        os.environ["TYPESAFE_API_KEY"] = settings.typesafe_api_key
 
     # Manage local server if needed
     server_mgr = None

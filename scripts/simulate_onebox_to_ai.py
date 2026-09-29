@@ -12,7 +12,7 @@ Simulates the exact interaction path between OneBox and Crawler:
    - Tenant isolation & Entitlement check (_require_entitlement)
    - Database retrieval of target review / keyset batch from PostgreSQL
 3. AI Inference Service:
-   - Multi-model evaluation across Jev AI (~typesafe/jev-latest), OpenAI (gpt-4o-mini), and ABSA (v14 on-premise)
+   - Multi-model evaluation across TypeSafe Jev (jev-latest), OpenAI (gpt-4o-mini), and ABSA (v14 on-premise)
    - Schema validation & prompt construction
 4. Database Persistence:
    - Storing structured analysis in review_analyses table
@@ -116,13 +116,13 @@ def simulate_provider_inference(provider: str, review_text: str) -> dict:
     
     if provider == "jev":
         out_tokens = 180
-        cost_usd = (input_tokens * 0.05 / 1_000_000.0) + (out_tokens * 0.20 / 1_000_000.0)
+        cost_usd = input_tokens * 0.042 / 1_000_000.0
         cost_idr = cost_usd * USD_TO_IDR
         return {
             "latency_sec": 0.35,
             "tokens": input_tokens + out_tokens,
             "cost_idr": cost_idr,
-            "engine": "~typesafe/jev-latest",
+            "engine": "jev-latest",
             "analysis": {
                 "sentiment": "negative" if any(w in review_text.lower() for w in ["lama", "antre", "kecewa", "buruk", "rusak", "mahal"]) else "positive",
                 "category": "waiting time" if "lama" in review_text.lower() else "service quality",

@@ -4,11 +4,9 @@ from pprint import pprint
 
 # Force environment to local
 os.environ["APP_ENV"] = "local"
-# Ensure we hit openrouter if not specified
-if "JEV_BASE_URL" not in os.environ:
-    os.environ["JEV_BASE_URL"] = "https://openrouter.ai/api"
-if "JEV_ENGINE_VERSION" not in os.environ:
-    os.environ["JEV_ENGINE_VERSION"] = "~typesafe/jev-latest"
+# Use the documented TypeSafe endpoint and stable Jev alias by default.
+os.environ.setdefault("TYPESAFE_BASE_URL", "https://api.typesafe.ai")
+os.environ.setdefault("TYPESAFE_MODEL", "jev-latest")
 
 from app.config import get_settings
 from app.integrations.jev_client import JevAiClient
@@ -18,9 +16,9 @@ def main():
     client = JevAiClient(settings)
 
     print(f"Testing JevAiClient against: {client._http.base_url}")
-    if not settings.jev_api_key:
-        print("WARNING: JEV_API_KEY is not set. The request will likely fail with a 401 Unauthorized.")
-        print("Please set your OpenRouter API key with: export JEV_API_KEY='your_api_key'")
+    if not settings.typesafe_api_key:
+        print("WARNING: TYPESAFE_API_KEY is not set. The request will likely fail with a 401 Unauthorized.")
+        print("Set it with: export TYPESAFE_API_KEY='your_api_key'")
     
     review = {
         "review_text": "Pertama kalinya harus dirawat di RS pakai BPJS, cukup kaget karena pelayanan di sini memuaskan, cepat, dan gak ribet utk BPJS.",

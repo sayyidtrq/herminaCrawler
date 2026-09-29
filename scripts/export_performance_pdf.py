@@ -506,7 +506,7 @@ def generate_html_report() -> str:
       <tbody>
         <tr style="background: #F0FDF4;">
           <td class="font-bold" style="color: #166534;">JEV AI</td>
-          <td><code>~typesafe/jev-latest</code></td>
+          <td><code>jev-latest</code></td>
           <td class="text-right font-bold">1.06 - 4.97 req/s</td>
           <td class="text-right">1.85s</td>
           <td class="text-right">1.99s</td>
@@ -537,7 +537,7 @@ def generate_html_report() -> str:
       </tbody>
     </table>
     <p style="font-size: 7.2pt; color: #64748B;">
-      * Biaya dihitung menggunakan tarif resmi OpenAI ($0.15/1M input, $0.60/1M output) dan Jev AI via OpenRouter, dikonversikan ke <strong>Rp 17.500 / USD</strong>.
+      * Biaya dihitung menggunakan tarif OpenAI ($0.15/1M input, $0.60/1M output) dan TypeSafe Jev ($0.042/1M input; output gratis), dikonversikan ke <strong>Rp 17.500 / USD</strong>.
     </p>
   </div>
 

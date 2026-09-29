@@ -24,7 +24,7 @@ def _optional_decimal(value: object, field_name: str) -> Decimal | None:
 
 class LocationService:
     editable_fields = {
-        "hospital_name",
+        "organization_name",
         "branch_name",
         "city",
         "address",
@@ -69,10 +69,11 @@ class LocationService:
             raise ValueError("External place ID is required.")
 
         location = Location(
-            hospital_name=str(
-                data.get("hospital_name")
+            organization_name=str(
+                data.get("organization_name")
                 or data.get("company_name")
                 or data.get("brand_name")
+                or data.get("hospital_name")
                 or "Company"
             ).strip(),
             branch_name=branch_name,

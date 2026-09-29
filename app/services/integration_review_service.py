@@ -1,4 +1,4 @@
-"""Projection and delta-sync pull for the OneBox v1 integration contract.
+"""Projection and delta-sync pull for the OneBox integration contract.
 
 Separate from ``ReviewService`` on purpose. ReviewService serves the FE and is
 free to change shape; this one is pinned to the published contract. The
@@ -37,8 +37,18 @@ EPOCH = CursorPosition(sync_updated_at=datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 HISTORICAL_CATEGORY_ALIASES = {
     "customer service": "customer_service",
-    "service quality": "customer_service",
+    "service quality": "service_quality",
     "waiting time": "waiting_time",
+    "doctor_service": "professional_service",
+    "nurse_service": "staff_service",
+    "billing": "billing_payment",
+    "pharmacy": "availability",
+    "emergency_room": "safety_security",
+    "inpatient": "facility",
+    "booking_system": "booking_ordering",
+    "staff_communication": "staff_service",
+    "security": "safety_security",
+    "food": "food_beverage",
     "general": "other",
 }
 
@@ -364,7 +374,7 @@ class IntegrationReviewService:
             "is_potential_viral": (
                 bool(analysis.is_potential_viral) if analysis else False
             ),
-            "is_patient_safety_issue": (
-                bool(analysis.is_patient_safety_issue) if analysis else False
+            "is_safety_issue": (
+                bool(analysis.is_safety_issue) if analysis else False
             ),
         }

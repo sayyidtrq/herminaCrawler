@@ -26,10 +26,10 @@
       "sync_updated_at": "2026-07-10T09:05:00Z",
       "analysis_status": "completed",
       "analyzed": true,
-      "output_schema_version": "v1",
+      "output_schema_version": "v2",
       "sentiment": "positive",
       "sentiment_score": 0.9312,
-      "issue_category": "doctor_service",
+      "issue_category": "professional_service",
       "urgency": "low",
       "summary": "Pujian untuk keramahan dan kejelasan dokter.",
       "recommended_action": "Bagikan umpan balik positif ke tim dokter terkait.",
@@ -38,7 +38,7 @@
         "ramah"
       ],
       "is_potential_viral": false,
-      "is_patient_safety_issue": false
+      "is_safety_issue": false
     },
     {
       "id": 102,
@@ -66,10 +66,10 @@
       "sync_updated_at": "2026-07-12T03:15:00Z",
       "analysis_status": "completed",
       "analyzed": true,
-      "output_schema_version": "v1",
+      "output_schema_version": "v2",
       "sentiment": "negative",
       "sentiment_score": 0.9714,
-      "issue_category": "emergency_room",
+      "issue_category": "safety_security",
       "urgency": "critical",
       "summary": "Keluhan keterlambatan penanganan pasien di IGD.",
       "recommended_action": "Eskalasi ke kepala IGD dan audit waktu tunggu triase.",
@@ -79,7 +79,7 @@
         "penanganan"
       ],
       "is_potential_viral": true,
-      "is_patient_safety_issue": true
+      "is_safety_issue": true
     },
     {
       "id": 103,
@@ -107,7 +107,7 @@
       "sync_updated_at": "2026-07-13T01:25:00Z",
       "analysis_status": "pending",
       "analyzed": false,
-      "output_schema_version": "v1",
+      "output_schema_version": "v2",
       "sentiment": null,
       "sentiment_score": null,
       "issue_category": null,
@@ -116,7 +116,7 @@
       "recommended_action": null,
       "keywords": [],
       "is_potential_viral": false,
-      "is_patient_safety_issue": false
+      "is_safety_issue": false
     }
   ],
   "page": {

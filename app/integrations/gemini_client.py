@@ -10,22 +10,25 @@ class ReviewAnalysisResult(BaseModel):
     sentiment: Literal["positive", "neutral", "negative", "mixed", "unknown"]
     sentiment_score: float = Field(ge=0, le=1)
     issue_category: Literal[
-        "doctor_service",
-        "nurse_service",
+        "product_quality",
+        "service_quality",
+        "professional_service",
+        "staff_service",
         "administration",
         "waiting_time",
         "cleanliness",
         "facility",
         "parking",
-        "billing",
-        "pharmacy",
-        "emergency_room",
-        "inpatient",
+        "accessibility",
+        "price_value",
+        "billing_payment",
+        "availability",
+        "delivery_fulfillment",
         "customer_service",
-        "booking_system",
-        "staff_communication",
-        "security",
-        "food",
+        "booking_ordering",
+        "digital_experience",
+        "safety_security",
+        "food_beverage",
         "general_praise",
         "other",
     ]
@@ -34,7 +37,7 @@ class ReviewAnalysisResult(BaseModel):
     recommended_action: str
     keywords: list[str]
     is_potential_viral: bool
-    is_patient_safety_issue: bool
+    is_safety_issue: bool
 
 
 class GeminiClientBase(ABC):

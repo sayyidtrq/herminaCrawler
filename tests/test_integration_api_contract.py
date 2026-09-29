@@ -1,4 +1,4 @@
-"""Contract tests for the OneBox v1 integration endpoint (VOC-CS-01).
+"""Contract tests for the OneBox v2 integration endpoint (VOC-CS-01).
 
 These tests exist to make a breaking change loud. OneBox parses this response, so
 a dropped field, a widened enum, a "+00:00" instead of a "Z", or a leaked
@@ -84,7 +84,7 @@ EXPECTED_ITEM_FIELDS = {
     "recommended_action",
     "keywords",
     "is_potential_viral",
-    "is_patient_safety_issue",
+    "is_safety_issue",
 }
 
 ANALYSIS_ONLY_FIELDS = {
@@ -381,7 +381,7 @@ def test_unanalyzed_review_nulls_every_analysis_field(client):
     # Collections stay non-null so consumers never null-check them.
     assert item["keywords"] == []
     assert item["is_potential_viral"] is False
-    assert item["is_patient_safety_issue"] is False
+    assert item["is_safety_issue"] is False
 
 
 def test_analyzed_reviews_carry_their_analysis(client):
@@ -393,8 +393,8 @@ def test_analyzed_reviews_carry_their_analysis(client):
     assert critical["analysis_status"] == "completed"
     assert critical["sentiment"] == "negative"
     assert critical["urgency"] == "critical"
-    assert critical["issue_category"] == "emergency_room"
-    assert critical["is_patient_safety_issue"] is True
+    assert critical["issue_category"] == "safety_security"
+    assert critical["is_safety_issue"] is True
     assert critical["summary"]
     assert critical["recommended_action"]
 
@@ -459,7 +459,7 @@ def test_sync_updated_at_is_exposed_and_differs_from_updated_at(client, seeded):
     ("stored", "expected"),
     [
         ("customer service", "customer_service"),
-        ("service quality", "customer_service"),
+        ("service quality", "service_quality"),
         ("waiting time", "waiting_time"),
         ("General", "other"),
         ("future category", "other"),

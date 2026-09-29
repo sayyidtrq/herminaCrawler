@@ -6,9 +6,15 @@ trap 'echo "Deployment failed while running: $BASH_COMMAND" >&2' ERR
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+START_HEAD="$(git rev-parse HEAD)"
 git fetch origin
 git checkout dev
 git pull --ff-only origin dev
+CURRENT_HEAD="$(git rev-parse HEAD)"
+
+if [[ "$START_HEAD" != "$CURRENT_HEAD" ]]; then
+  exec "$SCRIPT_DIR/$(basename -- "${BASH_SOURCE[0]}")" "$@"
+fi
 
 ENV_FILE=../.env
 if ! grep -qE '^APIFY_API_TOKENS=.+' "$ENV_FILE" 2>/dev/null; then

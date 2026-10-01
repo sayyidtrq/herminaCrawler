@@ -159,9 +159,9 @@ class CrawlQueue:
         target_ids = sorted(set(onebox_location_ids))
         competitor_specs: dict[str, dict] = {}
         for spec in competitor_targets or []:
-            key = self._competitor_spec_key(spec)
-            if key:
-                competitor_specs[key] = spec
+            spec_key = self._competitor_spec_key(spec)
+            if spec_key:
+                competitor_specs[spec_key] = spec
         if not target_ids and not competitor_specs:
             raise CrawlQueueError(
                 400,

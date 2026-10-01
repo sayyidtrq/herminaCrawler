@@ -982,3 +982,61 @@ def test_competitor_and_location_validation(session_factory):
     assert res_loc.json()["error"]["code"] == "INVALID_PARAMETER"
 
 
+
+
+def test_mixed_batch_by_target_id_is_idempotent_and_conflicts_on_other_target(
+    session_factory,
+):
+    with session_factory() as session:
+        session.add_all(
+            [
+                Competitor(
+                    company_id=1,
+                    name="Competitor A",
+                    source="apify_google_maps",
+                    external_place_id="place-mixed-a",
+                    onebox_target_id=601,
+                    is_active=True,
+                ),
+                Competitor(
+                    company_id=1,
+                    name="Competitor B",
+                    source="apify_google_maps",
+                    external_place_id="place-mixed-b",
+                    onebox_target_id=602,
+                    is_active=True,
+                ),
+            ]
+        )
+        session.commit()
+
+    client = make_client(session_factory, principal(1, 1))
+    headers = {"Idempotency-Key": "169:2026-10-01:mixed-target"}
+
+    def body(target_id: int) -> dict:
+        return {
+            "slot": "morning",
+            "targets": [
+                {"kind": "location", "onebox_location_id": 101},
+                {"kind": "competitor", "onebox_target_id": target_id},
+            ],
+        }
+
+    first = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body(601))
+    replay = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body(601))
+    other = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body(602))
+
+    assert first.status_code == 202
+    jobs = first.json()["data"]["jobs"]
+    assert {job["kind"] for job in jobs} == {"location", "competitor"}
+    assert [job["onebox_target_id"] for job in jobs if job["kind"] == "competitor"] == [601]
+    assert replay.status_code == 202
+    assert replay.json()["data"]["batch_id"] == first.json()["data"]["batch_id"]
+    assert replay.json()["data"]["reused_existing_job"] is True
+    assert other.status_code == 409
+    assert other.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+    with session_factory() as session:
+        batches = list(session.scalars(select(CrawlBatch)))
+        assert len(batches) == 1
+        # Regresi: kunci idempotensi klien tidak boleh tertimpa kunci spec kompetitor.
+        assert batches[0].idempotency_key == "169:2026-10-01:mixed-target"

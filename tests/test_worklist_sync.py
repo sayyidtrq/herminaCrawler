@@ -680,3 +680,61 @@ def test_fetch_location_skipped_disabled_for_target_id_only_row(
     assert result["status"] == "skipped_disabled"
     assert "disabled by the OneBox worklist" in result["error_message"]
 
+
+
+def test_worklist_generated_by_onebox_registry_mode_syncs_and_survives_cutover(
+    session_factory, settings, company_id
+):
+    """Payload gerado kode OneBox (VocWorklist::fromTarget) diproses apa adanya."""
+    import copy
+
+    registry = json.loads(
+        (Path(__file__).parent / "fixtures" / "onebox_registry_worklist.json").read_text()
+    )
+    client = FakeWorklistClient(payload=registry)
+    service = WorklistSyncService(
+        company_id=company_id,
+        session_factory=session_factory,
+        settings=onebox_settings(settings, company_id),
+        client=client,
+    )
+
+    result = service.refresh()
+    assert result.upserted == 3 and result.deactivated == 0
+    with session_factory() as session:
+        depok = session.scalar(
+            select(Location).where(Location.external_place_id == "ChIJ-depok-0001")
+        )
+        competitor = session.scalar(
+            select(Competitor).where(Competitor.external_place_id == "ChIJ-comp-0002")
+        )
+        assert (depok.onebox_target_id, depok.onebox_location_id) == (501, 12)
+        assert depok.ai_model == "jev-1" and depok.ingest_reviews is True
+        assert competitor.onebox_target_id == 502
+        assert competitor.crawl_enabled is False and competitor.ingest_reviews is False
+        depok_id = depok.id
+
+    # Cutover: OneBox berhenti mengirim id koneksi lama. Baris tetap dikelola
+    # (penanda berpindah ke id lokasi/target) dan tidak diduplikasi.
+    cutover = copy.deepcopy(registry)
+    for item in cutover["data"]:
+        item["onebox_connection_id"] = None
+    client.payload = cutover
+    assert service.refresh().deactivated == 0
+    with session_factory() as session:
+        depok = session.scalar(
+            select(Location).where(Location.external_place_id == "ChIJ-depok-0001")
+        )
+        assert depok.id == depok_id and depok.onebox_connection_id is None
+        assert session.scalar(select(func.count()).select_from(Location)) == 2
+
+    # Target yang hilang dari worklist harus tetap dinonaktifkan walau tanpa id koneksi.
+    cutover["data"] = [
+        item for item in cutover["data"] if item["external_place_id"] != "ChIJ-depok-0001"
+    ]
+    assert service.refresh().deactivated == 1
+    with session_factory() as session:
+        depok = session.scalar(
+            select(Location).where(Location.external_place_id == "ChIJ-depok-0001")
+        )
+        assert depok.is_active is False and depok.crawl_enabled is False

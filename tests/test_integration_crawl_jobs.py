@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import get_settings
 from app.db.base import Base
-from app.db.models import ApiClient, Company, CrawlBatch, CrawlJob, Location
+from app.db.models import ApiClient, Company, Competitor, CrawlBatch, CrawlJob, Location
 from app.services.crawl_queue import CrawlQueue
 from app.services.crawl_worker import CrawlWorker
 from apps.api.app_api.routers.integration_crawl_jobs import (
@@ -742,3 +742,243 @@ def test_review_quota_is_accepted_and_not_part_of_the_fingerprint(session_factor
     with session_factory() as session:
         job = session.scalar(select(CrawlJob))
         assert job.result_json["request"]["review_quota_remaining"] == 40
+
+
+def test_competitor_enqueue_by_onebox_target_id(session_factory):
+    with session_factory() as session:
+        comp = Competitor(
+            company_id=1,
+            name="Competitor 1",
+            source="apify_google_maps",
+            external_place_id="place-comp-501",
+            onebox_target_id=501,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add(comp)
+        session.commit()
+        comp_id = comp.id
+
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:competitor-target-id"},
+        json={
+            "slot": "morning",
+            "targets": [
+                {
+                    "kind": "competitor",
+                    "onebox_target_id": 501,
+                    "target_review_count": 5,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()["data"]
+    assert len(data["jobs"]) == 1
+    job = data["jobs"][0]
+    assert job["kind"] == "competitor"
+    assert job["onebox_target_id"] == 501
+    assert job["onebox_location_id"] is None
+    assert job["competitor_id"] == comp_id
+
+
+def test_competitor_enqueue_target_id_wins_when_place_id_differs(session_factory):
+    with session_factory() as session:
+        comp_target = Competitor(
+            company_id=1,
+            name="Competitor Target",
+            source="apify_google_maps",
+            external_place_id="place-real",
+            onebox_target_id=502,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        comp_other = Competitor(
+            company_id=1,
+            name="Competitor Other",
+            source="apify_google_maps",
+            external_place_id="place-differs",
+            onebox_target_id=503,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add_all([comp_target, comp_other])
+        session.commit()
+        target_comp_id = comp_target.id
+
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:competitor-precedence"},
+        json={
+            "slot": "morning",
+            "targets": [
+                {
+                    "kind": "competitor",
+                    "onebox_target_id": 502,
+                    "external_place_id": "place-differs",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()["data"]
+    assert len(data["jobs"]) == 1
+    job = data["jobs"][0]
+    assert job["kind"] == "competitor"
+    assert job["onebox_target_id"] == 502
+    assert job["competitor_id"] == target_comp_id
+
+
+def test_competitor_enqueue_unknown_or_cross_tenant_target_id_returns_404(
+    session_factory,
+):
+    with session_factory() as session:
+        comp_b = Competitor(
+            company_id=2,
+            name="Tenant B Competitor",
+            source="apify_google_maps",
+            external_place_id="place-tenant-b",
+            onebox_target_id=701,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add(comp_b)
+        session.commit()
+
+    client_a = make_client(session_factory, principal(1, 1))
+
+    res_unknown = client_a.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:unknown-comp-target"},
+        json={"targets": [{"kind": "competitor", "onebox_target_id": 999999}]},
+    )
+    assert res_unknown.status_code == 404
+    assert res_unknown.json()["error"]["code"] == "TARGET_NOT_FOUND"
+
+    res_cross = client_a.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:cross-tenant-comp-target"},
+        json={"targets": [{"kind": "competitor", "onebox_target_id": 701}]},
+    )
+    assert res_cross.status_code == 404
+    assert res_cross.json()["error"]["code"] == "TARGET_NOT_FOUND"
+
+
+def test_legacy_competitor_by_external_place_id_and_pinned_fingerprint(
+    session_factory,
+):
+    with session_factory() as session:
+        comp = Competitor(
+            company_id=1,
+            name="Competitor Legacy",
+            source="apify_google_maps",
+            external_place_id="place-legacy-1",
+            onebox_target_id=None,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add(comp)
+        session.commit()
+        comp_id = comp.id
+
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:legacy-comp-place"},
+        json={
+            "slot": "manual",
+            "targets": [
+                {
+                    "kind": "competitor",
+                    "external_place_id": "place-legacy-1",
+                    "target_review_count": 10,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()["data"]
+    assert len(data["jobs"]) == 1
+    job = data["jobs"][0]
+    assert job["kind"] == "competitor"
+    assert job["competitor_id"] == comp_id
+    assert job["onebox_target_id"] is None
+
+    legacy_spec = {
+        "place-legacy-1": {
+            "target_review_count": 10,
+            "date_from": None,
+            "date_to": None,
+            "sort_by": "newest",
+            "coverage": "delta",
+            "budget": 10,
+            "crawl_mode": "regular_delta",
+        }
+    }
+    fp_manual = CrawlQueue.request_fingerprint(
+        slot="manual",
+        onebox_location_ids=[],
+        competitor_targets=legacy_spec,
+    )
+    assert fp_manual == "9e3e09ed6516ce0f41332526f14198e34596408bc67927fd97b3ba26dc442da1"
+
+    fp_none = CrawlQueue.request_fingerprint(
+        slot=None,
+        onebox_location_ids=[],
+        competitor_targets=legacy_spec,
+    )
+    assert fp_none == "fd8f98b7f3f6c8c7ed8e417d07771a04b34331d649cfa9cabf27535b3b9dd247"
+
+
+def test_competitor_and_location_validation(session_factory):
+    import pydantic
+    from apps.api.app_api.integration_crawl_schemas import CrawlTargetRequest
+
+    with pytest.raises(pydantic.ValidationError):
+        CrawlTargetRequest(kind="competitor")
+
+    with pytest.raises(pydantic.ValidationError):
+        CrawlTargetRequest(kind="competitor", external_place_id="   ")
+
+    c1 = CrawlTargetRequest(kind="competitor", onebox_target_id=123)
+    assert c1.onebox_target_id == 123
+
+    c2 = CrawlTargetRequest(kind="competitor", external_place_id="place-abc")
+    assert c2.external_place_id == "place-abc"
+
+    with pytest.raises(pydantic.ValidationError):
+        CrawlTargetRequest(kind="location")
+
+    loc = CrawlTargetRequest(kind="location", onebox_location_id=101)
+    assert loc.onebox_location_id == 101
+
+    client = make_client(session_factory, principal(1, 1))
+    res_comp = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:val-comp"},
+        json={"targets": [{"kind": "competitor"}]},
+    )
+    # The integration prefix remaps FastAPI 422 validation errors to 400 INVALID_PARAMETER
+    assert res_comp.status_code == 400
+    assert res_comp.json()["error"]["code"] == "INVALID_PARAMETER"
+
+    res_loc = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:val-loc"},
+        json={"targets": [{"kind": "location"}]},
+    )
+    assert res_loc.status_code == 400
+    assert res_loc.json()["error"]["code"] == "INVALID_PARAMETER"
+
+

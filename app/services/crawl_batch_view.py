@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import CrawlBatch, CrawlJob
+from app.db.models import Competitor, CrawlBatch, CrawlJob
 from app.services.crawl_result import (
     matched_count,
     rating_snapshot,
@@ -25,6 +25,15 @@ def serialize_batch(
             .where(CrawlJob.batch_id == batch.id)
             .order_by(CrawlJob.id)
         )
+    )
+    competitor_ids = {job.competitor_id for job in jobs if job.competitor_id is not None}
+    target_ids = (
+        dict(session.execute(
+            select(Competitor.id, Competitor.onebox_target_id).where(
+                Competitor.id.in_(competitor_ids)
+            )
+        ).all())
+        if include_jobs and competitor_ids else {}
     )
     counts = {
         status: 0
@@ -119,6 +128,7 @@ def serialize_batch(
             {
                 "job_id": job.id,
                 "onebox_location_id": job.onebox_location_id,
+                "onebox_target_id": target_ids.get(job.competitor_id),
                 "competitor_id": job.competitor_id,
                 "kind": (
                     "competitor"
@@ -190,4 +200,3 @@ def batch_stop_reasons(jobs) -> tuple[str | None, dict[str, int]]:
     if len(counts) == 1:
         return next(iter(counts)), counts
     return "mixed", counts
-

@@ -1,0 +1,90 @@
+﻿Test Case ID,Test Scenario,Test Steps, Expected Result,Actual Result,Status,Notes
+TC-001,Menampilkan halaman Fetch Jobs beserta KPI ringkasannya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs","Halaman Fetch Jobs terbuka dan lima KPI terisi angka dari data nyata: jumlah Lokasi (beserta jumlah aktif), Ulasan di OneBox (beserta jumlah yang dibaca crawler), Tarik Review (beserta waktu terakhir), tingkat keberhasilan, dan jumlah isu yang perlu dicek. Tidak ada KPI yang menampilkan strip atau NaN.",,,
+TC-002,Berpindah jenis target antara Cabang dan Kompetitor,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Klik tab ""Kompetitor"" pada pemilih jenis target
+5. Amati label KPI, daftar pilihan, dan judul halaman
+6. Klik kembali tab ""Cabang""","Saat tab Kompetitor aktif, judul, label KPI, dan isi dropdown pemilihan berganti ke data kompetitor; daftar cabang tidak ikut muncul. Saat kembali ke tab Cabang, seluruh tampilan pulih ke data cabang tanpa perlu memuat ulang halaman.",,,
+TC-003,Menampilkan Place ID cabang yang dipilih sebagai target crawl,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih satu cabang pada dropdown Cabang
+5. Amati panel status di bawah form","Panel status menampilkan Place ID cabang yang dipilih. Sebelum ada cabang dipilih, panel menampilkan ""Belum ada cabang dipilih"" dengan petunjuk ""Pilih cabang di atas untuk melihat Place ID-nya."" Cabang yang belum punya Place ID ditandai jelas dan tidak bisa dijalankan.",,,
+TC-004,Menjalankan fetch mode Update Terbaru (delta) untuk satu cabang,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih mode fetch ""Update Terbaru""
+5. Pilih satu cabang yang punya Place ID
+6. Isi Batas pengambilan dengan angka yang valid (mis. 50)
+7. Klik tombol ""Mulai""
+8. Tunggu status berubah sampai selesai","Job masuk antrean lalu berjalan. Status pada layar berubah mengikuti proses (queued -> running -> done) tanpa perlu memuat ulang halaman, dan setelah selesai baris baru muncul di tabel Riwayat Fetch dengan cabang, batch, status, serta jumlah diambil/batas yang sesuai.",,,
+TC-005,Batas pengambilan wajib diisi pada mode Update Terbaru,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih mode fetch ""Update Terbaru""
+5. Pilih satu cabang
+6. Kosongkan field Batas pengambilan
+7. Klik tombol ""Mulai""","Proses ditolak dan muncul pesan ""Target review wajib diisi."" Tidak ada job yang masuk antrean dan tidak ada baris baru di Riwayat Fetch.",,,
+TC-006,Menolak Batas pengambilan di luar rentang yang diizinkan,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih satu cabang
+5. Isi Batas pengambilan dengan 0
+6. Klik tombol ""Mulai""
+7. Ulangi dengan nilai 100001",Kedua nilai ditolak dengan pesan yang menyebutkan batas yang berlaku (1 sampai 100.000). Tidak ada job yang berjalan pada kedua percobaan.,,,
+TC-007,Mode Rentang Khusus wajib menyertakan tanggal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih mode fetch ""Rentang Khusus""
+5. Biarkan Rentang tanggal kosong
+6. Klik tombol ""Mulai""","Proses ditolak dengan pesan yang menyatakan rentang tanggal wajib diisi untuk mode ini. Setelah tanggal mulai dan akhir diisi dengan benar, tombol Mulai berhasil menjalankan job.",,,
+TC-008,Mode Ambil Semua tidak boleh dikombinasikan dengan rentang tanggal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih mode fetch ""Ambil Semua""
+5. Isi Rentang tanggal (mis. 7 hari terakhir atau rentang sendiri)
+6. Klik tombol ""Mulai""",Proses ditolak dengan pesan yang menjelaskan bahwa mode Ambil Semua menyisir seluruh tanggal sehingga tidak dapat dibatasi rentang. Tidak ada job yang berjalan.,,,
+TC-009,Menolak rentang tanggal terbalik,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih mode fetch ""Rentang Khusus""
+5. Pilih ""Rentang sendiri…"" pada Rentang tanggal
+6. Isi tanggal mulai lebih besar dari tanggal akhir
+7. Klik tombol ""Mulai""",Proses ditolak dengan pesan kesalahan rentang tanggal yang jelas. Tidak ada job yang berjalan dan isian form tidak hilang.,,,
+TC-010,Menampilkan estimasi sebelum job dijalankan,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih satu cabang
+5. Ubah Batas pengambilan dan Rentang tanggal
+6. Amati kotak estimasi di atas tombol Mulai","Kotak estimasi muncul dan isinya berubah mengikuti kombinasi cabang, batas, dan rentang yang dipilih. Estimasi disajikan sebagai perkiraan, bukan janji jumlah ulasan baru.",,,
+TC-011,Menambahkan beberapa cabang ke antrean lalu menjalankannya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Pilih cabang A, klik ""Tambah ke antrean""
+5. Pilih cabang B, klik ""Tambah ke antrean""
+6. Amati daftar antrean
+7. Klik tombol ""Mulai""","Kedua cabang tampil pada daftar antrean dengan parameternya masing-masing. Saat dijalankan, seluruh antrean diproses berurutan dan setiap cabang menghasilkan satu baris pada Riwayat Fetch.",,,
+TC-012,Mengosongkan antrean,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Tambahkan minimal dua cabang ke antrean
+5. Klik tombol ""Kosongkan""",Seluruh isi antrean terhapus dan panel antrean kembali tersembunyi. Tidak ada job yang terlanjur berjalan akibat penghapusan ini.,,,
+TC-013,Menampilkan Riwayat Fetch beserta rincian hasil tiap run,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Fetch Jobs
+4. Jalankan minimal satu fetch sampai selesai
+5. Amati tabel Riwayat Fetch
+6. Pindah halaman pada pagination bila tersedia","Tabel menampilkan kolom Waktu, Cabang, Batch, Status, Diambil/batas, Baru di Crawler, Duplikat, Di luar rentang, Gagal, dan Aksi dengan angka yang konsisten dengan hasil run. Pagination berpindah halaman tanpa mengubah filter. Sebelum ada run, tampil ""Riwayat muncul setelah penarikan pertama dijalankan.""",,,
+TC-014,Menolak akses bagi user tanpa permission voc_fetchjobs,"1. Login dengan user yang TIDAK memiliki permission voc_fetchjobs
+2. Coba buka menu Fetch Jobs
+3. Coba panggil aksi mulai crawl",Menu Fetch Jobs tidak dapat diakses dan aksi crawl ditolak dengan pesan izin yang jelas. Tidak ada job yang masuk antrean meskipun aksi dipanggil langsung tanpa melalui UI.,,,
+TC-015,Menahan crawl saat kuota entitlement site sudah habis,"1. Siapkan site yang kuota ""Kuota crawl per hari"" atau ""Kuota review per bulan""-nya sudah terpakai habis
+2. Buka halaman Fetch Jobs
+3. Pilih cabang dan klik ""Mulai""","Crawl ditolak dengan pesan yang menyebutkan kuota mana yang terlampaui beserta batasnya. Tidak ada job yang berjalan, dan pemakaian kuota tidak bertambah akibat percobaan yang ditolak.",,,
+TC-016,Menampilkan pesan kegagalan yang jelas ketika crawler tidak dapat dihubungi,"1. Buka halaman Fetch Jobs
+2. Pilih cabang yang valid
+3. Jalankan fetch dalam kondisi service crawler tidak tersedia
+4. Amati pesan yang muncul dan baris pada Riwayat Fetch","Muncul pesan kegagalan yang menyebutkan konteks kegagalannya, bukan galat mentah. Status run tercatat gagal pada Riwayat Fetch, dan tidak ada ulasan yang tersimpan sebagian.",,,

@@ -1,0 +1,89 @@
+﻿Test Case ID,Test Scenario,Test Steps, Expected Result,Actual Result,Status,Notes
+TC-001,Menampilkan Dashboard Google Review beserta indikator kesehatan data,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard","Dashboard terbuka dan indikator kesehatan berubah dari ""Memeriksa data"" menjadi ""Data terhubung"" bila ada review, atau ""Belum ada review"" bila site belum punya data. Tidak ada panel yang tertinggal dalam keadaan memuat.",,,
+TC-002,Menampilkan KPI ringkasan sesuai data site,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Amati kartu KPI Total Review, Rata-rata Rating, Review Positif, dan Review Negatif
+5. Bandingkan dengan data pada menu Ulasan","Keempat KPI menampilkan angka yang konsisten dengan data ulasan pada cakupan yang sama. Rating ditampilkan dengan satu desimal, dan nilai kosong ditampilkan sebagai strip, bukan 0 atau NaN.",,,
+TC-003,Menggunakan kartu Hari Ini / Minggu Ini / Bulan Ini sebagai filter,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Klik kartu ""Hari Ini""
+5. Amati penanda aktif pada kartu dan isi panel di bawahnya
+6. Klik kartu ""Minggu Ini"" lalu ""Bulan Ini""","Kartu yang diklik ditandai aktif dan seluruh dashboard tersaring ke periode itu. Hanya satu kartu yang aktif pada satu waktu, dan filter Rentang Waktu pada panel filter ikut menunjukkan periode yang sama.",,,
+TC-004,Membatalkan filter periode dengan menekan kartu yang sedang aktif,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Klik kartu ""Hari Ini"" sampai aktif
+5. Klik kartu ""Hari Ini"" sekali lagi","Filter periode dibatalkan, penanda aktif hilang, dan dashboard kembali menampilkan seluruh waktu. Pengguna tidak terkunci pada satu periode.",,,
+TC-005,Angka Hari Ini / Minggu Ini / Bulan Ini tidak ikut menyusut mengikuti filter tanggal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Catat angka pada kartu Hari Ini, Minggu Ini, dan Bulan Ini
+5. Buka ""Filter lainnya"", set Rentang Waktu ke ""Pilih tanggal…"" dengan rentang bulan lalu
+6. Terapkan filter lalu amati ketiga kartu itu lagi","Ketiga angka tetap menyatakan periodenya masing-masing (hari ini, minggu ini, bulan ini) dan TIDAK berubah menjadi irisan rentang yang sedang dipilih. Panel lain yang memang mengikuti rentang tetap tersaring seperti biasa.",,,
+TC-006,Menyaring dashboard dengan Rentang Waktu,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Buka panel ""Filter lainnya""
+5. Pilih Rentang Waktu satu per satu: Hari Ini, Kemarin, Minggu Ini, Bulan Ini, 7 Hari Terakhir, 30 Hari Terakhir
+6. Pilih ""Pilih tanggal…"" lalu isi tanggal mulai dan akhir","Setiap pilihan menyaring seluruh panel dashboard secara konsisten. Saat ""Pilih tanggal…"" dipilih, input periode muncul, dan tanggal akhir tidak dapat mendahului tanggal mulai.",,,
+TC-007,Menyaring dashboard berdasarkan Lokasi dan Wilayah,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Buka panel ""Filter lainnya""
+5. Pilih satu lokasi pada filter LOKASI
+6. Kembalikan ke ""Semua lokasi"", lalu pilih satu wilayah pada filter WILAYAH",Seluruh KPI dan panel menyesuaikan cakupan yang dipilih. Lokasi di luar pilihan tidak ikut dihitung pada KPI maupun tampil pada daftar.,,,
+TC-008,Mencari lokasi atau kota dari bar pencarian,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Ketik nama lokasi pada kotak ""Cari lokasi atau kota...""
+5. Ketik kata kunci yang tidak cocok dengan data mana pun","Daftar lokasi tersaring sesuai kata kunci. Kata kunci tanpa hasil menampilkan empty state yang jelas, bukan panel kosong tanpa keterangan.",,,
+TC-009,Mengembalikan seluruh filter dengan Reset,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Terapkan kombinasi filter: rentang waktu, lokasi, wilayah, dan pencarian
+5. Klik ""Reset""","Seluruh filter kembali ke keadaan awal (semua waktu, semua lokasi, semua wilayah, pencarian kosong) dan dashboard menampilkan data penuh kembali. Penanda aktif pada kartu periode ikut hilang.",,,
+TC-010,Menampilkan cakupan kelompok yang sedang berlaku secara eksplisit,"1. Login sebagai user pada site yang Cakupan Kelompok-nya sudah diatur di Setup Parameter
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Amati pita cakupan di bawah judul halaman","Pita cakupan tampil dan menyebutkan nama kelompok yang sedang berlaku beserta jumlah lokasinya (mis. ""Scope: Hermina - 12 lokasi""). Pada site yang cakupannya tidak diatur, pita ini tidak muncul sama sekali.",,,
+TC-011,Data kelompok lain tidak ikut terhitung saat cakupan kelompok aktif,"1. Atur Cakupan Kelompok pada Setup Parameter ke satu kelompok saja
+2. Buka menu Dashboard
+3. Bandingkan Total Review dan daftar lokasi dengan data kelompok lain",KPI dan seluruh panel hanya menghitung lokasi milik kelompok yang dicakup. Lokasi milik perusahaan/kelompok lain tidak muncul pada daftar mana pun dan tidak ikut menambah angka KPI.,,,
+TC-012,Mengganti dimensi pada panel Kategori Keluhan Tertinggi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Cari panel Kategori Keluhan Tertinggi
+5. Klik dimensi Kategori, Sentimen, Rating, lalu Lokasi bergantian
+6. Amati judul, ringkasan, dan isi grafik","Grafik, judul, dan ringkasan berganti mengikuti dimensi yang dipilih, dan angkanya konsisten dengan filter yang sedang aktif. Tidak ada dimensi yang membuat panel kosong tanpa keterangan.",,,
+TC-013,Mengganti jenis grafik pada panel Kategori Keluhan Tertinggi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Pada panel Kategori Keluhan Tertinggi, pilih jenis grafik Bubble
+5. Ganti ke Bar, lalu Pie, lalu Tabel angka
+6. Pada jenis Bubble, coba pilih dimensi selain Kategori","Keempat jenis grafik tergambar tanpa galat dan menampilkan angka yang sama untuk data yang sama. Saat jenis Bubble dipilih, dimensi selain Kategori dinonaktifkan dengan keterangan, bukan disembunyikan.",,,
+TC-014,Menampilkan panel Review Negatif Terbaru,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Amati panel Review Negatif Terbaru
+5. Terapkan filter lokasi lalu amati lagi","Panel menampilkan review negatif terbaru beserta konteksnya dan ikut tersaring saat filter lokasi diterapkan. Bila tidak ada review negatif pada filter itu, tampil keterangan kosong yang jelas.",,,
+TC-015,Menampilkan panel Action & Follow Up beserta ringkasan statusnya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Amati panel ACTION & FOLLOW UP
+5. Cocokkan angka Total tindak lanjut, Perlu dikerjakan, Sedang diproses, dan Selesai dengan isi tabelnya","Keempat angka ringkasan konsisten dengan isi tabel tindak lanjut di bawahnya. Tabel menampilkan kolom Sumber, Lokasi, Issue, Jenis tindakan, Status, dan Aksi. Bila kosong, tampil ""Tidak ada tindak lanjut"".",,,
+TC-016,Memuat ulang dashboard tanpa kehilangan filter,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard
+4. Terapkan filter rentang waktu dan lokasi
+5. Klik tombol ""Muat ulang""
+6. Amati filter dan isi panel setelah proses selesai",Data diambil ulang dari server dan seluruh panel tergambar kembali dengan filter yang sama seperti sebelum dimuat ulang. Indikator kesehatan kembali menunjukkan status terhubung.,,,
+TC-017,Menampilkan keadaan kosong yang jelas pada site tanpa data review,"1. Login pada site yang belum punya review sama sekali
+2. Buka halaman Voice of Customer
+3. Klik menu Dashboard","Indikator kesehatan menampilkan ""Belum ada review"" dan setiap panel menampilkan empty state yang menjelaskan keadaannya. Tidak ada panel yang menampilkan galat, angka NaN, atau grafik kosong tanpa keterangan.",,,
+TC-018,Menolak akses Dashboard bagi user tanpa permission voc_dashboard,"1. Login dengan user yang TIDAK memiliki permission voc_dashboard
+2. Coba buka menu Dashboard
+3. Coba panggil endpoint data dashboard secara langsung",Menu Dashboard tidak dapat diakses dan permintaan data ditolak dengan pesan izin yang jelas. Tidak ada data review site yang terkirim ke user tersebut.,,,

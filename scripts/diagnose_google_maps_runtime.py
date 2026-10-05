@@ -137,6 +137,34 @@ def run_probe(url: str, advances: int, wait_seconds: float, screenshot: Path) ->
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
         report["traceback"] = traceback.format_exc()
+        if driver is not None:
+            try:
+                report["title"] = driver.title
+                report["final_url"] = driver.current_url
+                report["navigator_webdriver"] = driver.execute_script(
+                    "return navigator.webdriver"
+                )
+            except Exception:
+                pass
+            try:
+                body = driver.find_element(By.TAG_NAME, "body").text or ""
+                report["body_text_excerpt"] = body[:4000]
+            except Exception:
+                pass
+            try:
+                report["snapshots"].append(_snapshot(client, driver, "failure"))
+            except Exception as snapshot_exc:
+                report["snapshot_error"] = (
+                    f"{type(snapshot_exc).__name__}: {snapshot_exc}"
+                )
+            try:
+                screenshot.parent.mkdir(parents=True, exist_ok=True)
+                driver.save_screenshot(str(screenshot))
+                report["screenshot"] = str(screenshot)
+            except Exception as screenshot_exc:
+                report["screenshot_error"] = (
+                    f"{type(screenshot_exc).__name__}: {screenshot_exc}"
+                )
     finally:
         if driver is not None:
             try:

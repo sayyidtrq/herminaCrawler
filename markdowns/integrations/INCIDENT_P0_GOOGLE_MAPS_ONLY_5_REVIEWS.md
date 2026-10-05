@@ -1,6 +1,6 @@
 # P0 - Google Maps Crawler Berhenti pada 5 Review
 
-**Status:** akar masalah terbukti; hardening lokal selesai dan recovery profil menunggu login manual serta real-crawl verification
+**Status:** akar masalah terbukti; hardening lokal selesai, proxy residue sudah dibersihkan, tetapi real-crawl masih tertahan oleh Google auth wall setelah login manual
 **Tanggal investigasi:** 11-14 September 2026
 **Environment:** OneBox dev dan Crawler dev
 **Severity:** P0 karena seluruh fetch manual dan terjadwal dapat menghasilkan sukses palsu
@@ -352,3 +352,39 @@ perlu dipulihkan karena investigasi dan probe tidak menulis review baru.
   sebagai bagian dari perbaikan profil.
 - Endpoint `/api/health` hanya membuktikan API dan database. Ia tidak
   membuktikan login Google, selector, pagination, atau kemampuan crawl.
+
+## 12. Update verifikasi 14 September 2026
+
+Recovery server dev sudah dijalankan sampai worker kembali memakai branch
+canonical `dev` dan volume profil stabil `crawlerservice_selenium-profile`.
+Container setup browser sudah ditutup setelah login manual, API tetap healthy,
+dan worker kembali `Up`.
+
+Pemeriksaan yang berhasil:
+
+- `whoami` mengembalikan company `3` dan scope `crawl:enqueue`, `crawl:read`,
+  serta `reviews:read`.
+- `.env` tidak lagi mengaktifkan `SELENIUM_PROXY_URL`.
+- Node proxy orphan pada `Default/Preferences` sudah dihapus secara
+  terstruktur; backup file Preferences tetap disimpan di volume.
+- Profile memiliki sembilan nama cookie autentikasi Google. Nilai cookie tidak
+  pernah dicetak.
+- Probe memakai URL Place ID produksi membuka `RS Hermina Bogor`, tab
+  `Ulasan` aktif, lima card awal terbaca, dan `navigator.webdriver` bernilai
+  `null`.
+
+Yang masih gagal:
+
+- Batch `e01a5381-b60d-4f68-843a-22a84764f785`, job `530`, gagal dengan
+  `GOOGLE_AUTH_REQUIRED` pada attempt pertama.
+- Smoke ulang batch `a529dd36-4d62-4e26-9f02-056438990899`, job `535`, juga
+  gagal sebelum review pertama terbaca.
+- Probe read-only sesudah login manual tetap mendapat dialog Google auth saat
+  pagination dimajukan. Karena itu keberadaan avatar dan cookie belum cukup
+  untuk menyatakan profile siap crawl.
+
+Kesimpulan operasional: API, token, queue, worker, URL Place ID, dan profile
+mount sudah terisolasi dengan benar. Blocker tersisa berada pada sesi Google
+yang dipakai oleh runtime Selenium atau kebijakan Google terhadap load-more.
+Jangan menurunkan error ini menjadi `no_more_reviews`, dan jangan mengulang
+job berkali-kali sebelum probe read-only melewati lima card.

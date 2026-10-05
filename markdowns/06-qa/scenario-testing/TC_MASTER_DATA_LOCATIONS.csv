@@ -1,0 +1,107 @@
+﻿Test Case ID,Test Scenario,Test Steps, Expected Result,Actual Result,Status,Notes
+TC-001,Menampilkan daftar lokasi beserta KPI ringkasannya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi","Halaman Lokasi terbuka, tabel terisi data lokasi site, dan KPI di atasnya menampilkan angka yang konsisten dengan isi tabel. Tidak ada KPI yang menampilkan strip atau NaN.",,To do,
+TC-002,Berpindah antara daftar Cabang dan Kompetitor,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik segmen ""Kompetitor""
+5. Amati isi tabel dan label KPI
+6. Kembali ke segmen ""Cabang""","Isi tabel dan label KPI berganti mengikuti segmen yang dipilih. Data cabang tidak ikut muncul saat segmen Kompetitor aktif, dan sebaliknya.",,To do,
+TC-003,Membuka form tambah lokasi dan memastikan seluruh isian terlihat tanpa digulir,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik tombol tambah lokasi
+5. Amati isi modal dari atas sampai tombol Simpan","Modal terbuka dengan DUA section saja: ""Informasi lokasi"" dan ""Informasi PIC lokasi"". Seluruh isian terlihat tanpa perlu menggulir modal pada layar 1366x768 ke atas. Section PIC dalam keadaan terlipat.",,To do,
+TC-004,Menandai isian yang wajib diisi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik tombol tambah lokasi
+5. Amati label tiap field dan keterangan di kanan atas section","Hanya ""Nama lokasi"" dan ""External place ID"" yang bertanda bintang merah, dan ada keterangan ""* wajib diisi"". Field lain tidak bertanda karena memang boleh dikosongkan.",,To do,
+TC-005,Menyimpan lokasi baru dengan data minimum,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik tombol tambah lokasi
+5. Isi Nama lokasi dan External place ID dengan nilai valid
+6. Biarkan field lain kosong
+7. Klik ""Simpan Data""","Lokasi tersimpan, modal tertutup, dan baris baru muncul pada tabel. Field yang dikosongkan tidak menghalangi penyimpanan.",,To do,
+TC-006,Nama lokasi wajib diisi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik tombol tambah lokasi
+5. Kosongkan Nama lokasi, isi External place ID yang valid
+6. Klik ""Simpan Data""","Penyimpanan ditolak dengan pesan ""Nama lokasi tidak boleh kosong."" Modal tetap terbuka dan isian lain tidak hilang.",,To do,
+TC-007,Google Place ID wajib diisi dan divalidasi formatnya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik tombol tambah lokasi, isi Nama lokasi
+5. Kosongkan External place ID, klik ""Simpan Data""
+6. Isi External place ID dengan tautan peta (mis. https://maps.google.com/...)
+7. Klik ""Simpan Data""","Percobaan pertama ditolak dengan pesan ""Google Place ID wajib diisi — itu yang dipakai crawler sebagai target."" Percobaan kedua ditolak dengan pesan ""Format Google Place ID tidak dikenali. Isi ID tempatnya saja, bukan tautan peta atau nama tempat.""",,To do,
+TC-008,Latitude dan longitude harus diisi berpasangan dan berada di dalam batas Indonesia,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik tombol tambah lokasi, isi Nama lokasi dan Place ID
+5. Isi Latitude saja, kosongkan Longitude, klik ""Simpan Data""
+6. Isi keduanya dengan huruf, klik ""Simpan Data""
+7. Isi Latitude 40 dan Longitude 20, klik ""Simpan Data""","Ketiganya ditolak berurutan dengan pesan ""Latitude dan longitude harus diisi bersamaan."", ""Latitude dan longitude harus berupa angka."", dan ""Koordinat berada di luar batas Indonesia. Latitude harus -11 sampai 6 dan longitude 95 sampai 141."" Tidak ada lokasi yang tersimpan.",,To do,
+TC-009,Section PIC terlipat secara bawaan dan terbuka sendiri bila lokasinya sudah punya PIC,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik tombol tambah lokasi, amati section ""Informasi PIC lokasi""
+5. Tutup modal
+6. Buka edit pada lokasi yang SUDAH punya data PIC
+7. Amati section PIC-nya","Pada lokasi baru, section PIC terlipat dan kepalanya berbunyi ""Opsional — untuk eskalasi dan follow up"". Pada lokasi yang sudah punya PIC, section itu terbuka sendiri dan kepalanya meringkas isinya (mis. ""Budi Santoso · 081234567890"").",,To do,
+TC-010,Membuka dan menutup section PIC secara manual,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Buka form tambah lokasi
+5. Klik kepala section ""Informasi PIC lokasi""
+6. Isi Nama PIC dan Nomor WhatsApp
+7. Klik kepala section sekali lagi untuk menutupnya","Section terbuka dan tertutup mengikuti klik. Saat tertutup setelah diisi, kepalanya menampilkan ringkasan isinya, bukan teks ""Opsional"" — sehingga data yang tersembunyi tetap terlihat keberadaannya.",,To do,
+TC-011,Validasi format nomor WhatsApp dan email PIC,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Buka form tambah lokasi, isi Nama lokasi dan Place ID
+5. Buka section PIC, isi Nomor WhatsApp dengan ""12"", klik ""Simpan Data""
+6. Perbaiki nomornya, lalu isi Email dengan ""nama@"" dan klik ""Simpan Data""","Keduanya ditolak dengan pesan format yang jelas (""Format nomor WhatsApp PIC tidak valid..."" dan ""Format email PIC tidak valid...""). Bila section PIC sedang tertutup saat galat muncul, section itu terbuka sendiri dan kursor diarahkan ke field yang bermasalah.",,To do,
+TC-012,Mengedit lokasi yang sudah ada,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Klik aksi edit pada salah satu baris
+5. Amati judul modal dan isian yang sudah terisi
+6. Ubah Kota dan Alamat
+7. Klik ""Simpan Data"" lalu muat ulang halaman","Judul modal berbunyi ""Update data lokasi"" dan seluruh isian terisi data lokasi tersebut. Perubahan tersimpan dan bertahan setelah halaman dimuat ulang.",,To do,
+TC-013,Mengelola Wilayah Master dan Kelompok dari dalam form lokasi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Buka form lokasi
+5. Klik tombol roda gigi di samping ""Wilayah master""
+6. Tambah satu wilayah baru lalu tutup modalnya
+7. Ulangi untuk ""Kelompok / holding""",Modal pengelolaan terbuka di atas form lokasi tanpa menutupnya. Wilayah/kelompok yang baru dibuat langsung tersedia pada dropdown setelah modal ditutup.,,To do,
+TC-014,Menolak penghapusan wilayah yang masih dipakai cabang,"1. Login dengan user yang punya akses VoC
+2. Buka menu Lokasi
+3. Buka pengelolaan Wilayah Master
+4. Coba hapus wilayah yang masih dipakai minimal satu cabang","Penghapusan ditolak dengan pesan yang menyebutkan nama wilayah dan jumlah cabang yang memakainya, beserta cara membereskannya. Wilayah tidak terhapus.",,To do,
+TC-015,Mode kompetitor menyembunyikan field yang tidak berlaku,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Pindah ke segmen ""Kompetitor""
+5. Klik tombol tambah
+6. Amati judul section, label nama, dan field yang tersedia","Judul section pertama berubah menjadi ""Informasi kompetitor"", label namanya menjadi ""Nama kompetitor"", dan field Nama perusahaan, Wilayah master, Kelompok, serta seluruh section PIC tidak ditampilkan. Tata letak tetap rapi tanpa kolom kosong yang menganga.",,To do,
+TC-016,Menghapus lokasi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Pilih satu lokasi, klik aksi hapus
+5. Konfirmasi penghapusan
+6. Muat ulang halaman",Lokasi terhapus dari daftar dan tidak muncul lagi setelah halaman dimuat ulang. KPI di atas tabel ikut menyesuaikan.,,To do,
+TC-017,Menyaring dan mencari lokasi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Lokasi
+4. Ketik kata kunci pada kotak pencarian
+5. Terapkan filter yang tersedia (status, wilayah, kelompok)
+6. Buka ""Filter lainnya"" dan terapkan filter lanjutan
+7. Klik ""Reset""",Tabel tersaring sesuai kombinasi filter dan penghitung jumlah data menyesuaikan. Reset mengembalikan seluruh filter ke keadaan awal.,,To do,
+TC-018,Menolak akses bagi user tanpa permission voc_locations,"1. Login dengan user yang TIDAK memiliki permission voc_locations
+2. Coba buka menu Lokasi
+3. Coba simpan dan hapus lokasi",Menu Lokasi tidak dapat diakses dan kedua aksi ditolak dengan pesan izin yang jelas. Tidak ada perubahan data master yang tersimpan.,,To do,

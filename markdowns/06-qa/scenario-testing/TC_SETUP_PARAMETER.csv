@@ -1,0 +1,65 @@
+﻿Test Case ID,Test Scenario,Test Steps, Expected Result,Actual Result,Status,Notes
+TC-001,Menampilkan halaman Pengaturan VoC beserta status kesiapannya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan","Halaman terbuka dan panel ""Kesiapan VoC"" menampilkan status konfigurasi beserta empat ringkasan: Lokasi Siap Crawl, Scheduler Aktif, Kuota Crawl, dan status konfigurasi. Tidak ada panel yang tertinggal pada keadaan ""Memuat"".",,To do,
+TC-002,Menampilkan Profil Perusahaan sesuai data site,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Amati panel ""Profil Perusahaan""
+5. Cocokkan Nama Perusahaan, Domain, Tipe Site, Status Site, Lokasi Aktif, dan PIC Lokasi dengan data site","Seluruh field terisi data site yang sedang aktif. Field yang memang belum diisi menampilkan keadaan kosong yang jelas, bukan angka nol atau strip tanpa keterangan.",,To do,
+TC-003,Menyimpan perubahan Profil Perusahaan,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Pada panel ""Profil Perusahaan"", ubah Deskripsi
+5. Klik ""Simpan""
+6. Muat ulang halaman dan amati kembali",Perubahan tersimpan dengan konfirmasi yang jelas dan bertahan setelah halaman dimuat ulang.,,To do,
+TC-004,Menyimpan perubahan Akun Aktif,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Pada panel ""Akun Aktif"", ubah Nama Tampilan atau Telepon
+5. Klik ""Simpan""
+6. Muat ulang halaman",Perubahan tersimpan dan bertahan setelah dimuat ulang. Email dan Login Terakhir tetap menampilkan data akun yang sedang login.,,To do,
+TC-005,Menampilkan pemakaian kuota Crawl dan Analisis AI,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Amati panel ""Kuota""
+5. Cocokkan angka pemakaian Crawl dan Analisis AI beserta persentasenya","Kedua kuota menampilkan pemakaian berjalan beserta persentasenya. Persentase konsisten dengan angka pemakaian dan batasnya; site tanpa batas ditandai jelas, bukan ditampilkan sebagai 0%.",,To do,
+TC-006,Mengatur model AI default lewat panel AI Engine,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Pada panel ""AI Engine"", pilih model default yang berbeda
+5. Klik ""Simpan""
+6. Muat ulang halaman dan amati pilihannya","Pilihan model tersimpan dan bertahan setelah dimuat ulang. Model yang tidak tersedia di environment Crawler ditolak dengan pesan yang menjelaskan sebabnya, bukan tersimpan diam-diam.",,To do,
+TC-007,Menampilkan Akses Fitur sesuai benefit site,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Amati panel ""Akses Fitur""
+5. Cocokkan daftar fitur aktif dengan benefit yang dibeli site","Panel menampilkan status tiap benefit (mis. Kuota review per bulan, Kuota crawl per hari, Review dianalisis AI, Jadwal crawl aktif, Pelacakan kompetitor, Follow-up via Ticket). Fitur yang tidak dibeli ditandai nonaktif, bukan disembunyikan tanpa keterangan.",,To do,
+TC-008,Mengatur Cakupan Kelompok pada Setup Parameter,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Buka panel ""Cakupan Kelompok""
+5. Centang satu kelompok, klik ""Simpan""
+6. Muat ulang halaman dan amati pilihannya",Pilihan tersimpan dengan konfirmasi dan bertahan setelah dimuat ulang. Daftar kelompok yang ditampilkan berasal dari master kelompok site tersebut.,,To do,
+TC-009,Cakupan Kelompok yang disimpan langsung membatasi layar lain,"1. Atur Cakupan Kelompok ke satu kelompok saja, simpan
+2. Buka menu Dashboard, menu Ulasan, dan menu Lokasi
+3. Amati pita cakupan dan isi datanya","Ketiga layar hanya menampilkan lokasi milik kelompok yang dicakup, dan Dashboard menampilkan pita cakupan yang menyebutkan nama kelompoknya. Lokasi milik kelompok lain tidak muncul di layar mana pun.",,To do,
+TC-010,Mengosongkan Cakupan Kelompok mengembalikan akses penuh,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Buka panel ""Cakupan Kelompok""
+5. Hapus seluruh centang, klik ""Simpan""
+6. Buka menu Dashboard","Seluruh lokasi site kembali terlihat dan pita cakupan pada Dashboard tidak lagi muncul. Cakupan kosong berarti tanpa pembatasan, bukan menyembunyikan semuanya.",,To do,
+TC-011,Menampilkan pesan kegagalan yang menyebutkan sebabnya saat simpan gagal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Buka panel ""Cakupan Kelompok""
+5. Simulasikan kondisi gagal saat menyimpan (mis. putus koneksi sesaat sebelum klik Simpan)
+6. Klik ""Simpan"" dan amati pesannya","Muncul pesan kegagalan yang menyebutkan sebabnya, bukan galat mentah atau kegagalan senyap. Pilihan sebelumnya tidak berubah sebagian.",,To do,
+TC-012,Pintasan Kesiapan Operasional membuka layar yang dituju,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Pengaturan
+4. Pada panel ""Kesiapan Operasional"", klik ""Lengkapi profil"", ""Cek akses"", ""Kelola lokasi"", ""Buka jadwal"", dan ""Cek kuota"" bergantian",Setiap tombol membuka layar atau panel yang sesuai dengan namanya. Tidak ada tombol yang mengarah ke halaman kosong atau tidak melakukan apa pun.,,To do,
+TC-013,Menolak akses bagi user tanpa permission voc_settings,"1. Login dengan user yang TIDAK memiliki permission voc_settings
+2. Coba buka menu Pengaturan
+3. Coba simpan profil, akun, AI engine, dan cakupan kelompok",Menu Pengaturan tidak dapat diakses dan seluruh aksi simpan ditolak dengan pesan izin yang jelas. Tidak ada konfigurasi yang berubah.,,To do,

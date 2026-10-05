@@ -1,0 +1,102 @@
+﻿Test Case ID,Test Scenario,Test Steps, Expected Result,Actual Result,Status,Notes
+TC-001,Menampilkan halaman Jadwal Crawl beserta daftar dan KPI-nya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl","Halaman terbuka dan tabel jadwal menampilkan kolom Nama, Lokasi, Jadwal, Berikutnya, Run terakhir, Status, Aktif, dan Aksi. KPI di atas tabel terisi angka. Bila belum ada jadwal, tampil empty state ""Belum ada jadwal"" dengan ajakan ""Buat jadwal untuk menjalankan crawl otomatis.""",,,
+TC-002,Membuat jadwal baru dengan scope Lokasi Tertentu,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik tombol ""Jadwal baru""
+5. Isi Nama jadwal
+6. Pilih scope ""Tertentu"" lalu centang minimal satu lokasi
+7. Isi target review dan pola jadwal (mis. Harian jam 06:00)
+8. Klik ""Simpan""","Jadwal tersimpan, modal tertutup, dan baris baru muncul pada tabel dengan nama, jumlah lokasi, pola jadwal, dan waktu ""Berikutnya"" yang sudah terhitung. Status awal aktif.",,,
+TC-003,Membuat jadwal dengan scope Semua lokasi dan scope Wilayah,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru""
+5. Pilih scope ""Semua"", amati ringkasan scope
+6. Ganti ke scope ""Wilayah"" lalu pilih satu wilayah
+7. Amati ringkasan scope dan jumlah lokasi yang tercakup
+8. Simpan","Ringkasan scope menyebutkan jumlah lokasi yang tercakup dan ikut berubah saat scope diganti. Jadwal tersimpan dengan cakupan sesuai pilihan, dan lokasi di luar cakupan tidak ikut terjadwal.",,,
+TC-004,Mencari dan memilih lokasi lewat picker pada scope Tertentu,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru"", pilih scope ""Tertentu""
+5. Ketik kata kunci pada kotak ""Cari lokasi...""
+6. Klik ""Pilih semua"" lalu ""Kosongkan""
+7. Centang beberapa lokasi secara manual","Daftar lokasi tersaring sesuai kata kunci. ""Pilih semua"" mencentang seluruh lokasi yang sedang tampil dan ""Kosongkan"" membatalkannya. Penghitung ""N dari M dipilih"" selalu sesuai dengan jumlah yang tercentang.",,,
+TC-005,Nama jadwal wajib diisi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru""
+5. Kosongkan field Nama
+6. Lengkapi field lain yang valid
+7. Klik ""Simpan""","Penyimpanan ditolak dengan pesan ""Nama jadwal wajib diisi."" Modal tetap terbuka dan isian lain tidak hilang.",,,
+TC-006,Jadwal wajib mencakup minimal satu lokasi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru"", isi nama
+5. Pilih scope ""Tertentu"" tanpa mencentang lokasi apa pun
+6. Klik ""Simpan""","Penyimpanan ditolak dengan pesan ""Pilih minimal satu lokasi."" Tidak ada jadwal yang tersimpan.",,,
+TC-007,Menolak ekspresi cron yang tidak valid pada mode Lanjutan,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru"", isi nama dan lokasi
+5. Pilih pola jadwal ""Lanjutan""
+6. Isi ekspresi cron yang salah (mis. ""abc"" atau ""0 6 * *"")
+7. Klik ""Simpan""","Penyimpanan ditolak dengan pesan ""Ekspresi jadwal tidak dikenali. Pakai lima kolom cron..."" Setelah diperbaiki menjadi lima kolom yang sah (mis. ""0 6 * * *""), jadwal tersimpan.",,,
+TC-008,Menolak target review dan rentang hari di luar batas,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru"", isi nama dan lokasi
+5. Isi Target review dengan 0, klik ""Simpan""
+6. Kembalikan target ke nilai sah, lalu isi rentang hari dengan 5000
+7. Klik ""Simpan""","Percobaan pertama ditolak dengan pesan ""Target review harus antara 1 dan ..."" dan percobaan kedua ditolak dengan pesan ""Rentang hari harus antara 1 dan 3650, atau dikosongkan untuk semua tanggal."" Tidak ada jadwal yang tersimpan pada kedua percobaan.",,,
+TC-009,Validasi rentang tanggal custom pada jadwal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru"", isi nama dan lokasi
+5. Pilih lookback ""custom"" lalu kosongkan salah satu tanggal, klik ""Simpan""
+6. Isi kedua tanggal dengan tanggal mulai lebih besar dari tanggal akhir
+7. Klik ""Simpan""","Percobaan pertama ditolak dengan pesan ""Tanggal mulai dan akhir wajib diisi untuk rentang custom."" dan percobaan kedua ditolak dengan pesan ""Tanggal mulai tidak boleh lebih besar dari tanggal akhir.""",,,
+TC-010,Menampilkan pratinjau jadwal berikutnya sesuai zona waktu,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Klik ""Jadwal baru"", isi nama dan lokasi
+5. Pilih pola jadwal dan jam tertentu
+6. Ganti Zona waktu
+7. Amati panel pratinjau",Panel pratinjau menampilkan waktu jalan berikutnya dan ikut berubah saat pola jadwal atau zona waktu diganti. Zona waktu yang tidak dikenal ditolak saat disimpan dengan pesan yang menyebut zona waktunya.,,,
+TC-011,Mengaktifkan dan menonaktifkan jadwal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Pada salah satu baris, matikan toggle kolom Aktif
+5. Muat ulang halaman
+6. Nyalakan kembali toggle","Status aktif tersimpan dan bertahan setelah halaman dimuat ulang. Jadwal yang nonaktif tidak memiliki waktu ""Berikutnya"" yang berjalan dan tidak dieksekusi otomatis.",,,
+TC-012,Menjalankan jadwal secara manual lewat Run Now,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Pilih satu jadwal, klik aksi jalankan sekarang
+5. Tunggu prosesnya berjalan
+6. Selagi run belum selesai, klik jalankan sekarang sekali lagi","Run pertama berjalan dan tercatat pada riwayat jadwal. Percobaan kedua ditolak dengan pesan ""Jadwal ini masih punya run yang belum selesai. Tunggu run itu rampung dulu."" sehingga tidak ada dua run bersamaan untuk satu jadwal.",,,
+TC-013,Menampilkan riwayat run sebuah jadwal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Pilih jadwal yang sudah pernah berjalan
+5. Buka riwayat jadwal
+6. Amati daftar run beserta statusnya","Modal riwayat menampilkan run beserta status yang dikenali sistem (berjalan, selesai, sebagian, gagal, dilewati) dan waktunya. Jadwal yang belum pernah berjalan menampilkan keadaan kosong yang jelas, bukan tabel kosong tanpa keterangan.",,,
+TC-014,Menyaring daftar jadwal dan mengembalikannya dengan Reset,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Ketik kata kunci pada kotak cari
+5. Pilih filter status, filter run terakhir, dan filter pola jadwal
+6. Buka ""Filter lainnya"" lalu isi rentang tanggal
+7. Klik ""Reset""",Tabel tersaring sesuai kombinasi filter dan penghitung jumlah data ikut menyesuaikan. Tombol Reset mengembalikan seluruh filter ke keadaan awal dan menampilkan kembali seluruh jadwal.,,,
+TC-015,Menghapus jadwal,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Jadwal Crawl
+4. Pilih satu jadwal, klik aksi hapus
+5. Konfirmasi penghapusan
+6. Muat ulang halaman",Jadwal terhapus dari daftar dan tidak muncul lagi setelah halaman dimuat ulang. Jadwal yang sudah terhapus tidak lagi dieksekusi otomatis.,,,
+TC-016,Menolak aksi jadwal bagi user tanpa permission voc_schedules,"1. Login dengan user yang TIDAK memiliki permission voc_schedules
+2. Coba buka menu Jadwal Crawl
+3. Coba simpan, aktif/nonaktifkan, jalankan, dan hapus jadwal","Menu tidak dapat diakses, dan keempat aksi ditolak dengan pesan izin yang menyebutkan aksinya (""Anda tidak memiliki izin untuk mengubah / menjalankan / menghapus Jadwal Crawl VoC.""). Tidak ada perubahan data yang tersimpan.",,,

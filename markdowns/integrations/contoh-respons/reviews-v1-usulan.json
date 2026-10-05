@@ -1,0 +1,86 @@
+{
+  "data": [
+    {
+      "id": 18432,
+      "location_id": 1041,
+      "location": "RS Hermina Depok",
+      "source": "apify",
+      "external_place_id": "ChIJ3W4519YcaS4R5g-B4Tw8T_U",
+      "external_review_id": "ChdDSUhNMG9nS0VJQ0FnSUNsdnNyWXN3RRAB",
+      "review_hash": "9f2c1b7a4d5e6f80a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "reviewer_name": "Rina Kartika",
+      "reviewer_profile_url": "https://www.google.com/maps/contrib/103928471625048372910/reviews",
+      "rating": 2,
+      "review_text": "Antrean pendaftaran lama sekali, hampir dua jam baru dipanggil.",
+      "review_time": "2026-09-18T03:14:00Z",
+      "owner_response_text": "Mohon maaf atas ketidaknyamanannya, Bu Rina.",
+      "owner_response_time": "2026-09-19T01:02:00Z",
+      "updated_at": "2026-09-19T01:05:11Z",
+      "sync_updated_at": "2026-09-19T01:05:11Z",
+      "analysis_status": "completed",
+      "analyzed": true,
+      "output_schema_version": "v1",
+      "sentiment": "negative",
+      "sentiment_score": -0.82,
+      "issue_category": "waiting_time",
+      "urgency": "high",
+      "summary": "Pasien menunggu hampir dua jam di pendaftaran.",
+      "recommended_action": "Tinjau kapasitas loket pendaftaran pada jam sibuk.",
+      "keywords": [
+        "antrean",
+        "pendaftaran",
+        "lama"
+      ],
+      "is_potential_viral": false,
+      "is_patient_safety_issue": false,
+      "review_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sChdDSUhNMG9nS0VJQ0FnSUNsdnNyWXN3RRAB!2m1!1s0x0:0x6f5ae1b0c2d3e4f5",
+      "review_photo_urls": [
+        "https://lh3.googleusercontent.com/places/ANXA/photo-antrean-1.jpg",
+        "https://lh3.googleusercontent.com/places/ANXA/photo-antrean-2.jpg"
+      ]
+    },
+    {
+      "id": 18433,
+      "location_id": 1041,
+      "location": "RS Hermina Depok",
+      "source": "apify",
+      "external_place_id": "ChIJ3W4519YcaS4R5g-B4Tw8T_U",
+      "external_review_id": "ChZDSUhNMG9nS0VJQ0FnSUNsdnNyWXN3EAE",
+      "review_hash": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081",
+      "reviewer_name": null,
+      "reviewer_profile_url": null,
+      "rating": 5,
+      "review_text": "",
+      "review_time": "2026-09-19T08:40:00Z",
+      "owner_response_text": null,
+      "owner_response_time": null,
+      "updated_at": "2026-09-19T08:41:02Z",
+      "sync_updated_at": "2026-09-19T08:41:02Z",
+      "analysis_status": "pending",
+      "analyzed": false,
+      "output_schema_version": "v1",
+      "sentiment": null,
+      "sentiment_score": null,
+      "issue_category": null,
+      "urgency": null,
+      "summary": null,
+      "recommended_action": null,
+      "keywords": [],
+      "is_potential_viral": false,
+      "is_patient_safety_issue": false,
+      "review_url": null,
+      "review_photo_urls": []
+    }
+  ],
+  "page": {
+    "limit": 200,
+    "has_more": false,
+    "next_cursor": null,
+    "checkpoint_cursor": "eyJ0IjoiMjAyNi0wOS0xOVQwODo0MTowMloiLCJpZCI6MTg0MzN9",
+    "snapshot_at": "2026-09-19T08:41:30Z"
+  },
+  "meta": {
+    "api_version": "v1",
+    "request_id": "0f8c2d31-6f2a-4c11-9d47-5b1e9a8c7d20"
+  }
+}

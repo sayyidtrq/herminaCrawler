@@ -1,0 +1,72 @@
+﻿Test Case ID,Test Scenario,Test Steps, Expected Result,Actual Result,Status,Notes
+TC-001,Menampilkan halaman Analisis Review beserta KPI ringkasannya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review","Halaman terbuka dan kelima KPI terisi: Review ditarik, Sudah dianalisa, Rata-rata rating, Review negatif, dan Cabang perlu perhatian. Angkanya konsisten dengan data review site.",,To do,
+TC-002,Menampilkan tab Hasil Analisis beserta keempat panelnya,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Pastikan tab ""Hasil Analisis"" aktif
+5. Amati panel Kategori isu, Cabang perlu perhatian, Review negatif terbaru, dan Tindak lanjut","Keempat panel terisi. Kategori isu terurut dari yang paling sering muncul, Cabang perlu perhatian terurut berdasarkan jumlah review negatif, dan kedua panel bawah menampilkan ringkasan beserta rekomendasi dari hasil analisa.",,To do,
+TC-003,Menjalankan analisis pada satu review,"1. Login dengan user yang punya akses VoC
+2. Buka menu Ulasan
+3. Pilih review yang belum dianalisis
+4. Klik tombol ""Analisis review""
+5. Tunggu proses selesai","Analisis berjalan dan hasilnya (Sentiment, Urgency, Kategori, Summary, Recommended Action) muncul lengkap pada panel detail. Status analisis review berubah menjadi sudah dianalisa.",,To do,
+TC-004,Menolak analisis pada review yang belum punya ID Crawler,"1. Buka menu Ulasan
+2. Pilih review yang belum memiliki ID Crawler
+3. Klik ""Analisis review""","Proses ditolak dengan pesan ""Review ini belum memiliki ID Crawler dan tidak dapat dianalisis."" Tidak ada hasil analisa parsial yang tersimpan.",,To do,
+TC-005,Menolak analisis saat AI dinonaktifkan pada koneksi review tersebut,"1. Buka menu Analisis Review, tab Konfigurasi
+2. Nonaktifkan Status AI pada satu koneksi, simpan
+3. Buka menu Ulasan, pilih review milik koneksi itu
+4. Klik ""Analisis review""","Proses ditolak dengan pesan ""AI dinonaktifkan untuk Connection review ini."" Setelah Status AI diaktifkan kembali, analisis berhasil dijalankan.",,To do,
+TC-006,Menampilkan tab Konfigurasi AI per koneksi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi""
+5. Amati tabel konfigurasi AI","Tabel menampilkan kolom Koneksi, Lokasi, Sumber, Status AI, Model, Versi skema, dan Terakhir diubah, terisi sesuai konfigurasi tiap koneksi VoC site tersebut.",,To do,
+TC-007,Mengubah Status AI dan model pada satu koneksi,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi""
+5. Pada satu koneksi, ubah Status AI dan pilih model lain
+6. Simpan
+7. Muat ulang halaman","Perubahan tersimpan dan bertahan setelah dimuat ulang, dan kolom ""Terakhir diubah"" menunjukkan waktu perubahan barusan.",,To do,
+TC-008,Menolak model yang tidak tersedia di environment Crawler,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi""
+5. Pilih model yang tidak tersedia pada Crawler environment ini
+6. Simpan","Penyimpanan ditolak dengan pesan ""Model AI tidak tersedia pada Crawler environment ini. Muat ulang daftar model dan pilih kembali."" Konfigurasi lama tidak berubah.",,To do,
+TC-009,Menangani kegagalan saat daftar model Crawler tidak dapat diambil,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi"" dalam kondisi service Crawler tidak tersedia
+5. Coba simpan konfigurasi","Muncul pesan ""Daftar model Crawler tidak dapat diverifikasi: ..."" beserta sebabnya. Konfigurasi tidak tersimpan setengah jalan.",,To do,
+TC-010,Menolak Status AI yang bukan aktif atau nonaktif,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi""
+5. Kirim nilai Status AI di luar aktif/nonaktif (mis. lewat pemanggilan aksi langsung)","Permintaan ditolak dengan pesan ""AI Enabled harus bernilai aktif atau nonaktif."" Konfigurasi tidak berubah.",,To do,
+TC-011,Menolak Output Schema Version yang belum didukung,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi""
+5. Kirim versi skema yang belum didukung lalu simpan","Penyimpanan ditolak dengan pesan ""Output Schema Version belum didukung."" Versi skema yang tersimpan tetap yang lama.",,To do,
+TC-012,Melakukan rollback model AI,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi""
+5. Buka panel ""Rollback model AI""
+6. Kosongkan nama model, jalankan rollback
+7. Isi nama model yang sah, jalankan rollback","Percobaan pertama ditolak dengan pesan ""Nama model wajib diisi."" Percobaan kedua berjalan; bila Crawler menolak, muncul pesan ""Crawler gagal menjalankan rollback: ..."" beserta sebabnya, bukan galat mentah.",,To do,
+TC-013,Mengubah system instruction,"1. Login dengan user yang punya akses VoC
+2. Buka halaman Voice of Customer
+3. Klik menu Analisis Review
+4. Klik tab ""Konfigurasi""
+5. Ubah isi field ""System instruction""
+6. Simpan lalu muat ulang halaman","Isi system instruction tersimpan dan bertahan setelah dimuat ulang, serta dipakai pada analisis berikutnya.",,To do,
+TC-014,Menampilkan keadaan kosong pada site yang belum punya review dianalisis,"1. Login pada site yang belum punya review dianalisis
+2. Buka menu Analisis Review",KPI menampilkan nol dengan wajar dan setiap panel menampilkan keadaan kosong yang menjelaskan sebabnya. Tidak ada panel yang menampilkan galat atau grafik kosong tanpa keterangan.,,To do,
+TC-015,Menolak akses bagi user tanpa permission voc_analysis,"1. Login dengan user yang TIDAK memiliki permission voc_analysis
+2. Coba buka menu Analisis Review
+3. Coba simpan konfigurasi AI dan jalankan rollback",Menu tidak dapat diakses dan kedua aksi ditolak dengan pesan izin yang jelas. Tidak ada konfigurasi AI yang berubah.,,To do,

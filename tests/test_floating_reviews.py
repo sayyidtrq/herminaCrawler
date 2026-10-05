@@ -413,3 +413,21 @@ def test_no_quota_means_unlimited():
 
     assert result["total_inserted"] == 2
     assert result["metadata"]["stop_reason"] != "review_quota_exhausted"
+
+
+def test_review_photos_are_stored_and_backfilled_on_recrawl():
+    factory, company_id, location = make_db()
+    photos = ["https://lh3.googleusercontent.com/a", "https://lh3.googleusercontent.com/b"]
+
+    store(factory, company_id, location, raw("p1"))  # tersimpan tanpa foto
+    assert only_review(factory).review_photo_urls == []
+
+    _, duplicate = store(
+        factory, company_id, location,
+        {**raw("p1"), "review_photo_urls": photos, "review_url": "https://maps/p1"},
+    )
+
+    assert duplicate
+    review = only_review(factory)
+    assert review.review_photo_urls == photos
+    assert review.review_url == "https://maps/p1"

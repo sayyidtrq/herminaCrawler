@@ -121,6 +121,8 @@ class FetchService:
             ).strip(),
             "reviewer_profile_url": raw_review.get("reviewer_profile_url"),
             "reviewer_photo_url": raw_review.get("reviewer_photo_url"),
+            "review_url": raw_review.get("review_url"),
+            "review_photo_urls": raw_review.get("review_photo_urls") or [],
             "reviewer_local_guide_level": raw_review.get(
                 "reviewer_local_guide_level"
             ),

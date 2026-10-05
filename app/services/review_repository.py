@@ -17,10 +17,11 @@ ReviewT = TypeVar("ReviewT")
 
 # Kolom yang boleh diisi ulang pada baris yang sudah ada.
 #
-# Semuanya identitas pengulas, dan semuanya kosong pada setiap review yang
-# ditarik sebelum `include_personal` dinyalakan - aktornya memang tidak
-# mengirimkannya. Menariknya lagi tidak memperbaiki apa pun dengan
-# sendirinya: dedup menemukan barisnya lalu melewatinya, jadi nama yang
+# Identitas pengulas kosong pada setiap review yang ditarik sebelum
+# `include_personal` dinyalakan - aktornya memang tidak mengirimkannya.
+# `review_url` / `review_photo_urls` kosong pada review yang disimpan sebelum
+# normalizer membawanya. Menarik ulang tidak memperbaiki apa pun dengan
+# sendirinya: dedup menemukan barisnya lalu melewatinya, jadi nilai yang
 # sekarang sudah tersedia tidak pernah mendarat.
 BACKFILLABLE_FIELDS = (
     "reviewer_name",
@@ -28,6 +29,8 @@ BACKFILLABLE_FIELDS = (
     "reviewer_photo_url",
     "reviewer_local_guide_level",
     "reviewer_total_reviews",
+    "review_url",
+    "review_photo_urls",
 )
 
 # normalize_review() menyimpan nama kosong sebagai "Anonymous", bukan NULL.
@@ -36,7 +39,7 @@ _PLACEHOLDER_VALUES = {"reviewer_name": {"anonymous", "anonim"}}
 
 
 def _is_blank(field: str, value: object) -> bool:
-    if value is None or value == "":
+    if value is None or value == "" or value == []:
         return True
     placeholders = _PLACEHOLDER_VALUES.get(field)
     return bool(

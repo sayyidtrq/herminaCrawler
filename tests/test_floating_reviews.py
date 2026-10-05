@@ -431,3 +431,35 @@ def test_review_photos_are_stored_and_backfilled_on_recrawl():
     review = only_review(factory)
     assert review.review_photo_urls == photos
     assert review.review_url == "https://maps/p1"
+
+
+def test_backfill_script_fills_photos_from_raw_payload():
+    from scripts.backfill_review_photos import backfill
+
+    factory, company_id, location = make_db()
+    photos = ["https://lh3.googleusercontent.com/a"]
+    store(  # baris lama: kolom kosong, tapi item Apify aslinya masih di raw_payload
+        factory, company_id, location,
+        {**raw("old"), "raw_payload": {"review_photos_urls": photos, "review_url": "https://maps/old"}},
+    )
+    store(factory, company_id, location, {**raw("none"), "raw_payload": {"review_photos_urls": []}})
+    before = {r.external_review_id: r.sync_updated_at for r in _all_reviews(factory)}
+
+    with factory() as session:
+        assert backfill(session, dry_run=True)["updated"] == 1
+    assert all(r.review_photo_urls == [] for r in _all_reviews(factory))
+
+    with factory() as session:
+        stats = backfill(session)
+    assert stats == {"scanned": 2, "updated": 1, "photos": 1}
+    after = {r.external_review_id: r for r in _all_reviews(factory)}
+    assert after["old"].review_photo_urls == photos
+    assert after["old"].review_url == "https://maps/old"
+    assert utc(after["old"].sync_updated_at) > utc(before["old"])
+    assert after["none"].review_photo_urls == []
+    assert utc(after["none"].sync_updated_at) == utc(before["none"])
+
+
+def _all_reviews(factory):
+    with factory() as session:
+        return session.scalars(select(Review)).all()

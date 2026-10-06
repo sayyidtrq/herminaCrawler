@@ -15,7 +15,8 @@ Topologi yang digunakan:
 | API WireGuard | `10.13.13.90:8000` | `10.13.13.90:8001` |
 | Compose project | `herminacrawler` | `voc-staging-1123` |
 | Database | database lama | `voc_staging_1123` |
-| Profil Selenium | volume lama | volume khusus staging |
+| Sumber review | Apify | Apify (token staging) |
+| Redis | `hermina-redis` | `voc-staging-1123-redis` (hanya di jaringan project) |
 | OneBox upstream | dev | `https://staging.onebox.co.id/1_123_0` |
 | SiteId | 169 | 169 |
 
@@ -83,6 +84,28 @@ OneBox jalankan `whoami`; hasil wajib menunjukkan company staging, bukan company
 6. Poll batch hingga terminal; job harus `succeeded` atau `partial_success`.
 7. Pull review dari OneBox dan cocokkan `onebox_location_id` ke lokasi staging.
 8. Ulangi target 10 hanya setelah pengujian target 1 lolos.
+
+## Upgrade instance yang sudah berjalan ke kode untuk OneBox 1.124
+
+Kode `staging` sekarang memakai Apify (bukan Selenium), crawl-jobs contract v2
+(`coverage`/`budget`/estimate/probe), dan provider analisis ABSA/OpenAI/Jev.
+Kontrak keluaran review tetap **v1** (taksonomi dan `is_patient_safety_issue`
+yang sama dengan master Category OneBox 1.124); v2 dan target registry
+menunggu rilis OneBox berikutnya.
+
+`.env.staging-1123` yang sudah ada **tidak** ditimpa bootstrap, jadi edit
+manual sebelum menjalankan `scripts/deploy-staging-1123.sh` (tanpa
+`--initial`). `REVIEW_SOURCE_MODE=selenium` membuat API gagal start.
+
+```
+REVIEW_SOURCE_MODE=apify
+APIFY_API_TOKENS=<token staging, pisahkan dengan koma>
+ANALYSIS_PROVIDER=absa
+```
+
+Hapus baris `SELENIUM_*`. Migrasi Alembic berjalan otomatis di container `api`.
+Volume `staging-1123-selenium-profile` tidak dipakai lagi dan boleh dihapus
+setelah verifikasi. Mulai fetch dengan target 1: Apify memakai kredit.
 
 ## Rollback
 

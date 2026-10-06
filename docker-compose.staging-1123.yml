@@ -1,4 +1,19 @@
 services:
+  # Redis hanya ada di jaringan default project ini (bukan postgres-network),
+  # supaya nama "redis" tidak bentrok dengan stack lain di jaringan bersama.
+  redis:
+    image: redis:7-alpine
+    container_name: voc-staging-1123-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - staging-1123-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   api:
     image: voc-crawler:staging-1123
     build:
@@ -8,18 +23,28 @@ services:
     restart: unless-stopped
     env_file:
       - .env.staging-1123
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      PYTHONUNBUFFERED: "1"
     ports:
       - "${STAGING_API_PORT:-8001}:8000"
+    # ABSA berjalan di host yang sama (port 9090).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./exports/staging-1123:/app/exports
     networks:
+      - default
       - postgres-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 5
       start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
 
   crawl-worker:
     image: voc-crawler:staging-1123
@@ -29,19 +54,22 @@ services:
       - .env.staging-1123
     environment:
       SKIP_MIGRATIONS: "true"
-      SELENIUM_HEADLESS: "${SELENIUM_HEADLESS:-false}"
-      SELENIUM_USER_DATA_DIR: /app/.selenium-profile
+      REDIS_URL: redis://redis:6379/0
+      PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["/app/scripts/run_crawl_worker.sh"]
-    volumes:
-      - staging-1123-selenium-profile:/app/.selenium-profile
     networks:
+      - default
       - postgres-network
     depends_on:
+      redis:
+        condition: service_healthy
       api:
         condition: service_healthy
 
 volumes:
-  staging-1123-selenium-profile:
+  staging-1123-redis:
 
 networks:
   postgres-network:

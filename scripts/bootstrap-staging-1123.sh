@@ -31,6 +31,13 @@ if [[ -z "$ONEBOX_SVC_EMAIL" || -z "$ONEBOX_SVC_PASSWORD" ]]; then
   exit 1
 fi
 
+read -r -s -p "Apify API tokens (comma separated): " APIFY_API_TOKENS
+printf '\n'
+if [[ -z "$APIFY_API_TOKENS" ]]; then
+  echo "At least one Apify API token is required." >&2
+  exit 1
+fi
+
 DB_PASSWORD="$(openssl rand -hex 24)"
 CURSOR_SECRET="$(openssl rand -hex 32)"
 JWT_SECRET="$(openssl rand -hex 32)"
@@ -60,10 +67,9 @@ printf '%s\n' \
   "INTEGRATION_CURSOR_SECRET=$CURSOR_SECRET" \
   "JWT_SECRET_KEY=$JWT_SECRET" \
   "SERVICE_TOKEN_PEPPER=$TOKEN_PEPPER" \
-  'REVIEW_SOURCE_MODE=selenium' \
-  'SELENIUM_HEADLESS=false' \
-  'SELENIUM_DEFAULT_TARGET_REVIEWS=10' \
-  'SELENIUM_MAX_TARGET_REVIEWS=300' \
+  'REVIEW_SOURCE_MODE=apify' \
+  "APIFY_API_TOKENS=$(dotenv_quote "$APIFY_API_TOKENS")" \
+  'ANALYSIS_PROVIDER=absa' \
   'ONEBOX_BASE_URL=https://staging.onebox.co.id/1_123_0' \
   "ONEBOX_SVC_EMAIL=$(dotenv_quote "$ONEBOX_SVC_EMAIL")" \
   "ONEBOX_SVC_PASSWORD=$(dotenv_quote "$ONEBOX_SVC_PASSWORD")" \
@@ -73,6 +79,6 @@ printf '%s\n' \
   'STAGING_API_PORT=8001' >"$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
-unset ONEBOX_SVC_PASSWORD DB_PASSWORD CURSOR_SECRET JWT_SECRET TOKEN_PEPPER
+unset ONEBOX_SVC_PASSWORD APIFY_API_TOKENS DB_PASSWORD CURSOR_SECRET JWT_SECRET TOKEN_PEPPER
 echo "Created an isolated database and $ENV_FILE (mode 600)."
 echo "Next: run scripts/deploy-staging-1123.sh --initial."

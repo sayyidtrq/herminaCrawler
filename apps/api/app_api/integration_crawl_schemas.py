@@ -22,13 +22,13 @@ class CrawlDateRangeRequest(BaseModel):
 class CrawlTargetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Cabang memakai id lokasi OneBox. Kompetitor memakai id target OneBox
-    # (utama) atau Google Place ID (cara lama).
+    # Cabang di-alamati lewat id OneBox; kompetitor tidak bisa, karena
+    # kompetitor sengaja tidak dicerminkan ke master Location OneBox (dia bukan
+    # cabang kita). Kompetitor karena itu di-alamati lewat Google Place ID.
     kind: Literal["location", "competitor"] = Field(default="location")
     onebox_location_id: int | None = Field(default=None, gt=0)
-    onebox_target_id: int | None = Field(default=None, gt=0)
     external_place_id: str | None = Field(default=None, max_length=255)
-    # Deprecated; hanya jejak audit, tidak dipakai untuk resolusi target.
+    # Hanya untuk jejak audit dari OneBox; tidak dipakai untuk resolusi target.
     onebox_connection_id: int | None = Field(default=None, gt=0)
     # Backward-compatible name used by OneBox today. Newer clients should send
     # max_reviews_to_collect to make the semantics clearer: this is a maximum
@@ -83,9 +83,9 @@ class CrawlTargetRequest(BaseModel):
                 raise ValueError(
                     "onebox_location_id is required when kind is 'location'."
                 )
-        elif self.onebox_target_id is None and not (self.external_place_id or "").strip():
+        elif not (self.external_place_id or "").strip():
             raise ValueError(
-                "onebox_target_id or external_place_id is required when kind is 'competitor'."
+                "external_place_id is required when kind is 'competitor'."
             )
         return self
 
@@ -135,7 +135,6 @@ class CrawlJobResponse(BaseModel):
     # Kosong untuk job kompetitor. Tanpa ini serialisasi batch yang memuat
     # kompetitor akan gagal validasi dan berbalik menjadi 500.
     onebox_location_id: int | None = None
-    onebox_target_id: int | None = None
     competitor_id: int | None = None
     kind: str = "location"
     status: str

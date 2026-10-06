@@ -17,7 +17,7 @@ from app.integrations.review_source_client import (
 from app.services.fetch_log_service import FetchLogService
 from app.services.location_service import LocationService
 from app.services.review_service import ReviewService
-from app.services.worklist_sync_service import WorklistSyncError, WorklistSyncService, is_onebox_managed
+from app.services.worklist_sync_service import WorklistSyncError, WorklistSyncService
 from app.utils.date_parser import (
     is_within_date_range,
     parse_datetime,
@@ -181,11 +181,11 @@ class FetchService:
 
         result = self._empty_result(location)
         result["worklist_sync"] = worklist_result
-        if is_onebox_managed(location) and not location.crawl_enabled:
+        if getattr(location, 'onebox_connection_id', None) is not None and not location.crawl_enabled:
             result["status"] = "skipped_disabled"
             result["error_message"] = "Location is disabled by the OneBox worklist."
             return result
-        if is_onebox_managed(location) and not location.ingest_reviews:
+        if getattr(location, 'onebox_connection_id', None) is not None and not location.ingest_reviews:
             result["status"] = "skipped_ingest_disabled"
             result["error_message"] = "Review ingestion is disabled by the OneBox worklist."
             return result

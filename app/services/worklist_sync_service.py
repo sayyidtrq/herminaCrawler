@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import DEFAULT_REVIEW_LIMIT, MAX_REVIEW_LIMIT, Settings, get_settings
@@ -19,21 +19,6 @@ from app.integrations.onebox_worklist_client import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def onebox_managed_clause(model):
-    return or_(
-        model.onebox_connection_id.is_not(None),
-        model.onebox_location_id.is_not(None),
-        model.onebox_target_id.is_not(None),
-    )
-
-
-def is_onebox_managed(row) -> bool:
-    return any(
-        getattr(row, field, None) is not None
-        for field in ("onebox_connection_id", "onebox_location_id", "onebox_target_id")
-    )
 
 
 class WorklistSyncError(RuntimeError):
@@ -209,7 +194,6 @@ class WorklistSyncService:
 
         items: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
-        seen_target_ids: set[int] = set()
         for index, raw in enumerate(payload["data"]):
             if not isinstance(raw, dict):
                 raise WorklistSyncError(f"Worklist item {index} must be an object.")
@@ -227,11 +211,6 @@ class WorklistSyncService:
             if key in seen:
                 raise WorklistSyncError(f"Duplicate worklist item: {kind}/{external}.")
             seen.add(key)
-            onebox_target_id = _optional_int(raw.get("onebox_target_id"), "onebox_target_id")
-            if onebox_target_id is not None:
-                if onebox_target_id in seen_target_ids:
-                    raise WorklistSyncError(f"Duplicate onebox_target_id: {onebox_target_id}.")
-                seen_target_ids.add(onebox_target_id)
             default_crawl = kind == "location"
             default_ingest = kind == "location"
             item = {
@@ -241,7 +220,6 @@ class WorklistSyncService:
                     raw.get("onebox_connection_id", raw.get("connection_id")),
                     "onebox_connection_id",
                 ),
-                "onebox_target_id": onebox_target_id,
                 "onebox_location_id": _optional_int(
                     raw.get("onebox_location_id", raw.get("location_id")),
                     "onebox_location_id",
@@ -327,7 +305,7 @@ class WorklistSyncService:
             managed_locations = session.scalars(
                 select(Location).where(
                     Location.company_id == company_id,
-                    onebox_managed_clause(Location),
+                    Location.onebox_connection_id.is_not(None),
                 )
             ).all()
             for entity in managed_locations:
@@ -340,7 +318,7 @@ class WorklistSyncService:
             managed_competitors = session.scalars(
                 select(Competitor).where(
                     Competitor.company_id == company_id,
-                    onebox_managed_clause(Competitor),
+                    Competitor.onebox_connection_id.is_not(None),
                 )
             ).all()
             for entity in managed_competitors:
@@ -404,7 +382,6 @@ class WorklistSyncService:
         entity.google_reviews_url = item["google_reviews_url"]
         entity.target_review_count = item["target_review_count"]
         entity.onebox_connection_id = item["onebox_connection_id"]
-        entity.onebox_target_id = item["onebox_target_id"]
         entity.onebox_location_id = item["onebox_location_id"]
         entity.crawl_enabled = item["crawl_enabled"]
         entity.ingest_reviews = item["ingest_reviews"]
@@ -428,7 +405,6 @@ class WorklistSyncService:
         entity.google_reviews_url = item["google_reviews_url"]
         entity.target_review_count = item["target_review_count"]
         entity.onebox_connection_id = item["onebox_connection_id"]
-        entity.onebox_target_id = item["onebox_target_id"]
         entity.onebox_location_id = item["onebox_location_id"]
         entity.crawl_enabled = item["crawl_enabled"]
         entity.ingest_reviews = item["ingest_reviews"]

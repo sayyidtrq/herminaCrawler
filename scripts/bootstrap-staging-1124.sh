@@ -2,10 +2,10 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env.staging-1123"
+ENV_FILE="$ROOT_DIR/.env.staging-1124"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-postgresql}"
-DB_NAME="voc_staging_1123"
-DB_USER="voc_staging_1123"
+DB_NAME="voc_staging_1124"
+DB_USER="voc_staging_1124"
 
 dotenv_quote() {
   local value="$1"
@@ -61,16 +61,16 @@ docker exec "$POSTGRES_CONTAINER" createdb -U postgres -O "$DB_USER" "$DB_NAME"
 umask 077
 printf '%s\n' \
   'APP_ENV=staging' \
-  'APP_NAME=VoC Crawler Staging 1.123' \
+  'APP_NAME=VoC Crawler Staging 1.124' \
   'LOG_LEVEL=INFO' \
-  "DATABASE_URL=postgresql+psycopg://$DB_USER:$DB_PASSWORD@postgresql:5432/$DB_NAME" \
+  "DATABASE_URL=postgresql+psycopg2://$DB_USER:$DB_PASSWORD@postgresql:5432/$DB_NAME" \
   "INTEGRATION_CURSOR_SECRET=$CURSOR_SECRET" \
   "JWT_SECRET_KEY=$JWT_SECRET" \
   "SERVICE_TOKEN_PEPPER=$TOKEN_PEPPER" \
   'REVIEW_SOURCE_MODE=apify' \
   "APIFY_API_TOKENS=$(dotenv_quote "$APIFY_API_TOKENS")" \
   'ANALYSIS_PROVIDER=absa' \
-  'ONEBOX_BASE_URL=https://staging.onebox.co.id/1_123_0' \
+  'ONEBOX_BASE_URL=https://staging.onebox.co.id/1_124_0' \
   "ONEBOX_SVC_EMAIL=$(dotenv_quote "$ONEBOX_SVC_EMAIL")" \
   "ONEBOX_SVC_PASSWORD=$(dotenv_quote "$ONEBOX_SVC_PASSWORD")" \
   'ONEBOX_SITE_ID=169' \
@@ -81,4 +81,4 @@ chmod 600 "$ENV_FILE"
 
 unset ONEBOX_SVC_PASSWORD APIFY_API_TOKENS DB_PASSWORD CURSOR_SECRET JWT_SECRET TOKEN_PEPPER
 echo "Created an isolated database and $ENV_FILE (mode 600)."
-echo "Next: run scripts/deploy-staging-1123.sh --initial."
+echo "Next: run scripts/deploy-staging-1124.sh --initial."

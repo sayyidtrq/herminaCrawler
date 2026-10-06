@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="$ROOT_DIR/docker-compose.staging-1123.yml"
-ENV_FILE="$ROOT_DIR/.env.staging-1123"
-PROJECT="voc-staging-1123"
+COMPOSE_FILE="$ROOT_DIR/docker-compose.staging-1124.yml"
+ENV_FILE="$ROOT_DIR/.env.staging-1124"
+PROJECT="voc-staging-1124"
 EXPECTED_BRANCH="${EXPECTED_BRANCH:-staging}"
 INITIAL=false
 
@@ -17,7 +17,7 @@ fi
 
 cd "$ROOT_DIR"
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE; run scripts/bootstrap-staging-1123.sh first." >&2
+  echo "Missing $ENV_FILE; run scripts/bootstrap-staging-1124.sh first." >&2
   exit 1
 fi
 if [[ "$(stat -c '%a' "$ENV_FILE")" != "600" ]]; then
@@ -48,7 +48,7 @@ docker compose --env-file "$ENV_FILE" -p "$PROJECT" -f "$COMPOSE_FILE" up -d --f
 
 if [[ "$INITIAL" == true ]]; then
   docker compose --env-file "$ENV_FILE" -p "$PROJECT" -f "$COMPOSE_FILE" exec -T api \
-    python -m scripts.manage_company create --name "OneBox Staging 1.123"
+    python -m scripts.manage_company create --name "OneBox Staging 1.124"
 fi
 
 for _ in {1..30}; do
@@ -63,5 +63,5 @@ docker compose --env-file "$ENV_FILE" -p "$PROJECT" -f "$COMPOSE_FILE" ps
 if [[ "$INITIAL" == true ]]; then
   echo
   echo "Verify the company id above is 1, then issue the OneBox token:"
-  echo "docker compose --env-file .env.staging-1123 -p $PROJECT -f docker-compose.staging-1123.yml exec api python -m scripts.manage_api_client issue --company-id 1 --name onebox-staging-1.123 --scope crawl:enqueue --scope crawl:read --expires-days 90"
+  echo "docker compose --env-file .env.staging-1124 -p $PROJECT -f docker-compose.staging-1124.yml exec api python -m scripts.manage_api_client issue --company-id 1 --name onebox-staging-1.124 --scope crawl:enqueue --scope crawl:read --expires-days 90"
 fi

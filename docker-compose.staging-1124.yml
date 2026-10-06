@@ -3,11 +3,11 @@ services:
   # supaya nama "redis" tidak bentrok dengan stack lain di jaringan bersama.
   redis:
     image: redis:7-alpine
-    container_name: voc-staging-1123-redis
+    container_name: voc-staging-1124-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - staging-1123-redis:/data
+      - staging-1124-redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -15,14 +15,14 @@ services:
       retries: 5
 
   api:
-    image: voc-crawler:staging-1123
+    image: voc-crawler:staging-1124
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: voc-staging-1123-api
+    container_name: voc-staging-1124-api
     restart: unless-stopped
     env_file:
-      - .env.staging-1123
+      - .env.staging-1124
     environment:
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: "1"
@@ -32,7 +32,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./exports/staging-1123:/app/exports
+      - ./exports/staging-1124:/app/exports
     networks:
       - default
       - postgres-network
@@ -47,11 +47,11 @@ services:
         condition: service_healthy
 
   crawl-worker:
-    image: voc-crawler:staging-1123
-    container_name: voc-staging-1123-worker
+    image: voc-crawler:staging-1124
+    container_name: voc-staging-1124-worker
     restart: unless-stopped
     env_file:
-      - .env.staging-1123
+      - .env.staging-1124
     environment:
       SKIP_MIGRATIONS: "true"
       REDIS_URL: redis://redis:6379/0
@@ -69,7 +69,7 @@ services:
         condition: service_healthy
 
 volumes:
-  staging-1123-redis:
+  staging-1124-redis:
 
 networks:
   postgres-network:

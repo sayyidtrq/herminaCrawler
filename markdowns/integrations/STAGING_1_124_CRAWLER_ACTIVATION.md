@@ -1,33 +1,37 @@
-# Aktivasi Crawler untuk OneBox Staging 1.123
+# Aktivasi Crawler untuk OneBox Staging 1.124
 
 ## Keputusan arsitektur
 
-Instance crawler staging 1.123 harus terisolasi dari instance dev yang sudah
+Instance crawler staging 1.124 harus terisolasi dari instance dev yang sudah
 aktif. Konfigurasi `ONEBOX_BASE_URL`, akun service, `ONEBOX_SITE_ID`, dan
 `ONEBOX_COMPANY_ID` berlaku global per proses. Mengganti konfigurasi port 8000
 akan memutus atau mencampur worklist OneBox dev.
 
 Topologi yang digunakan:
 
-| Komponen | Dev aktif | Staging 1.123 |
+| Komponen | Dev aktif | Staging 1.124 |
 |---|---|---|
 | Host | `192.168.1.3` | `192.168.1.3` |
 | API WireGuard | `10.13.13.90:8000` | `10.13.13.90:8001` |
-| Compose project | `herminacrawler` | `voc-staging-1123` |
-| Database | database lama | `voc_staging_1123` |
+| Compose project | `herminacrawler` | `voc-staging-1124` |
+| Database | database lama | `voc_staging_1124` |
 | Sumber review | Apify | Apify (token staging) |
-| Redis | `hermina-redis` | `voc-staging-1123-redis` (hanya di jaringan project) |
-| OneBox upstream | dev | `https://staging.onebox.co.id/1_123_0` |
+| Redis | `hermina-redis` | `voc-staging-1124-redis` (hanya di jaringan project) |
+| OneBox upstream | dev | `https://staging.onebox.co.id/1_124_0` |
 | SiteId | 169 | 169 |
 
 ## Prasyarat dari sisi OneBox
 
-1. Pulihkan menu versi 1.123 sesuai `VOC_PULIHKAN_MENU_1123_STAGING.sql`.
+1. Pastikan migrasi OneBox 1.124.0 sudah berjalan di staging (menu dan
+   permission VoC ada di `1789500000000000_1_124_0`).
 2. Pastikan provider VoC adalah `PVD99` dan `Code='Voc'`.
 3. Siapkan akun service staging yang dapat login ke SiteId 169 dan membaca
    `GET /api/VocWorklist`.
 4. Pastikan Connection 985 dan 986 masih membawa metadata lokasi yang benar.
 5. Jangan jalankan ulang `voc_setup_all.sql` dan jangan memakai rollback lama.
+
+SiteId 169, company id 1, dan Connection 985/986 dibawa dari staging 1.123;
+verifikasi bahwa nilainya sama di staging 1.124 sebelum mengisi env.
 
 ## Bootstrap crawler
 
@@ -35,25 +39,25 @@ Jalankan dari `/home/ubuntu/crawlerService` setelah perubahan ini sudah masuk
 branch `staging`:
 
 ```bash
-chmod +x scripts/bootstrap-staging-1123.sh scripts/deploy-staging-1123.sh
-./scripts/bootstrap-staging-1123.sh
-./scripts/deploy-staging-1123.sh --initial
+chmod +x scripts/bootstrap-staging-1124.sh scripts/deploy-staging-1124.sh
+./scripts/bootstrap-staging-1124.sh
+./scripts/deploy-staging-1124.sh --initial
 ```
 
 Bootstrap meminta kredensial akun service secara interaktif, membuat database
-dan secrets terpisah, lalu menyimpan `.env.staging-1123` dengan mode `600`.
+dan secrets terpisah, lalu menyimpan `.env.staging-1124` dengan mode `600`.
 Script berhenti jika database atau file env sudah ada supaya tidak menimpa state.
 
 Terbitkan token setelah company staging terbentuk. Jangan tempel token ke chat,
 log, Git, atau dokumen:
 
 ```bash
-docker compose --env-file .env.staging-1123 \
-  -p voc-staging-1123 \
-  -f docker-compose.staging-1123.yml \
+docker compose --env-file .env.staging-1124 \
+  -p voc-staging-1124 \
+  -f docker-compose.staging-1124.yml \
   exec api python -m scripts.manage_api_client issue \
   --company-id 1 \
-  --name onebox-staging-1.123 \
+  --name onebox-staging-1.124 \
   --scope crawl:enqueue \
   --scope crawl:read \
   --expires-days 90
@@ -85,7 +89,12 @@ OneBox jalankan `whoami`; hasil wajib menunjukkan company staging, bukan company
 7. Pull review dari OneBox dan cocokkan `onebox_location_id` ke lokasi staging.
 8. Ulangi target 10 hanya setelah pengujian target 1 lolos.
 
-## Upgrade instance yang sudah berjalan ke kode untuk OneBox 1.124
+## Perbedaan dari instance staging 1.123
+
+Instance 1.124 adalah stack baru (project, database, Redis, volume, dan image
+tag berawalan `1124`); stack `voc-staging-1123` tidak disentuh. Keduanya
+memakai port API default 8001, jadi hentikan stack 1.123 sebelum menaikkan
+1.124, atau ubah `STAGING_API_PORT` di env 1.124.
 
 Kode `staging` sekarang memakai Apify (bukan Selenium), crawl-jobs contract v2
 (`coverage`/`budget`/estimate/probe), dan provider analisis ABSA/OpenAI/Jev.
@@ -93,28 +102,18 @@ Kontrak keluaran review tetap **v1** (taksonomi dan `is_patient_safety_issue`
 yang sama dengan master Category OneBox 1.124); v2 dan target registry
 menunggu rilis OneBox berikutnya.
 
-`.env.staging-1123` yang sudah ada **tidak** ditimpa bootstrap, jadi edit
-manual sebelum menjalankan `scripts/deploy-staging-1123.sh` (tanpa
-`--initial`). `REVIEW_SOURCE_MODE=selenium` membuat API gagal start.
-
-```
-REVIEW_SOURCE_MODE=apify
-APIFY_API_TOKENS=<token staging, pisahkan dengan koma>
-ANALYSIS_PROVIDER=absa
-```
-
-Hapus baris `SELENIUM_*`. Migrasi Alembic berjalan otomatis di container `api`.
-Volume `staging-1123-selenium-profile` tidak dipakai lagi dan boleh dihapus
-setelah verifikasi. Mulai fetch dengan target 1: Apify memakai kredit.
+Env yang wajib diisi ada di `.env.staging-1124.example`. Migrasi Alembic
+berjalan otomatis di container `api`. Mulai fetch dengan target 1: Apify
+memakai kredit.
 
 ## Rollback
 
 Rollback crawler tidak menyentuh port 8000:
 
 ```bash
-docker compose --env-file .env.staging-1123 \
-  -p voc-staging-1123 \
-  -f docker-compose.staging-1123.yml down
+docker compose --env-file .env.staging-1124 \
+  -p voc-staging-1124 \
+  -f docker-compose.staging-1124.yml down
 ```
 
 Kembalikan Connection 985/986 ke `mock=true` dari OneBox jika UI harus segera
@@ -126,8 +125,8 @@ diamankan.
 Claude mengerjakan boundary OneBox berikut:
 
 1. Jalankan diagnosis menu dan permission sebelum migration runner.
-2. Pulihkan menu memakai migration aplikasi, lalu buktikan 27 menu VoC unik,
-   tepat satu `HEADERMENU`, dan permission tidak nol.
+2. Jalankan migrasi 1.124.0, lalu buktikan menu VoC unik, tepat satu
+   `HEADERMENU`, dan permission tidak nol.
 3. Buat atau validasi akun service staging untuk SiteId 169 dan endpoint
    `/api/VocWorklist`; kirim kredensial melalui secret channel.
 4. Uji koneksi keluar dari host OneBox ke `10.13.13.90:8001`.

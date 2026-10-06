@@ -18,31 +18,28 @@ from app.integrations.gemini_client import GeminiClientBase
 logger = logging.getLogger(__name__)
 RATING_FALLBACK_MODEL = "rating-fallback-v1"
 # Shape of the analysis fields this build emits on the integration contract.
-# Kept in step with integration_schemas.OUTPUT_SCHEMA_VERSION, which is
-# independent from the stable /integration/v1 transport endpoint.
-OUTPUT_SCHEMA_VERSION = "v2"
+# Kept in step with apps.api.app_api.integration_schemas.API_VERSION, which is
+# what OneBox actually compares against.
+OUTPUT_SCHEMA_VERSION = "v1"
 ALLOWED_SENTIMENTS = {"positive", "neutral", "negative", "mixed", "unknown"}
 ALLOWED_URGENCIES = {"low", "medium", "high", "critical", "unknown"}
 ALLOWED_CATEGORIES = {
-    "product_quality",
-    "service_quality",
-    "professional_service",
-    "staff_service",
+    "doctor_service",
+    "nurse_service",
     "administration",
     "waiting_time",
     "cleanliness",
     "facility",
     "parking",
-    "accessibility",
-    "price_value",
-    "billing_payment",
-    "availability",
-    "delivery_fulfillment",
+    "billing",
+    "pharmacy",
+    "emergency_room",
+    "inpatient",
     "customer_service",
-    "booking_ordering",
-    "digital_experience",
-    "safety_security",
-    "food_beverage",
+    "booking_system",
+    "staff_communication",
+    "security",
+    "food",
     "general_praise",
     "other",
 }
@@ -564,7 +561,7 @@ class AnalysisService:
                     recommended_action=cleaned["recommended_action"],
                     keywords=cleaned["keywords"],
                     is_potential_viral=cleaned["is_potential_viral"],
-                    is_safety_issue=cleaned["is_safety_issue"],
+                    is_patient_safety_issue=cleaned["is_patient_safety_issue"],
                     model_name=model_name or self.client.model_name,
                     prompt_version=self.settings.prompt_version,
                     raw_response=raw_result,
@@ -657,7 +654,7 @@ class AnalysisService:
             "recommended_action": action,
             "keywords": [],
             "is_potential_viral": False,
-            "is_safety_issue": False,
+            "is_patient_safety_issue": False,
             "analysis_source": RATING_FALLBACK_MODEL,
         }
 
@@ -716,8 +713,8 @@ class AnalysisService:
             "recommended_action": str(result.get("recommended_action") or ""),
             "keywords": [str(keyword) for keyword in keywords],
             "is_potential_viral": bool(result.get("is_potential_viral", False)),
-            "is_safety_issue": bool(
-                result.get("is_safety_issue", result.get("is_patient_safety_issue", False))
+            "is_patient_safety_issue": bool(
+                result.get("is_patient_safety_issue", False)
             ),
         }
         return cleaned, corrected

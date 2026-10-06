@@ -35,11 +35,11 @@ def show_locations(locations: list) -> None:
         print("Please add a location first.")
         return
     print_table(
-        ["ID", "Organization", "Branch", "City", "Source", "Active"],
+        ["ID", "Hospital", "Branch", "City", "Source", "Active"],
         [
             [
                 item.id,
-                item.organization_name,
+                item.hospital_name,
                 item.branch_name,
                 item.city or "-",
                 item.source,

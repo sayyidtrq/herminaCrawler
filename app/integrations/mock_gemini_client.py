@@ -37,18 +37,15 @@ class MockGeminiClient(GeminiClientBase):
             score = 0.62
 
         category_rules = [
-            ("booking_ordering", ["booking", "pemesanan"]),
-            ("digital_experience", ["aplikasi", "website"]),
+            ("booking_system", ["booking", "aplikasi"]),
             ("waiting_time", ["antrean", "menunggu"]),
             ("administration", ["administrasi", "pendaftaran"]),
-            ("availability", ["stok", "tersedia", "obat"]),
+            ("pharmacy", ["farmasi", "obat"]),
             ("parking", ["parkir"]),
             ("cleanliness", ["bersih", "toilet"]),
             ("facility", ["gedung", "lift", "ac", "ruang tunggu"]),
-            ("professional_service", ["dokter", "konsultan", "teknisi"]),
-            ("staff_service", ["perawat", "petugas", "staf"]),
-            ("product_quality", ["produk", "barang", "kualitas"]),
-            ("delivery_fulfillment", ["pengiriman", "kurir"]),
+            ("doctor_service", ["dokter"]),
+            ("nurse_service", ["perawat"]),
         ]
         issue_category = "general_praise" if sentiment == "positive" else "other"
         for candidate, words in category_rules:
@@ -70,9 +67,9 @@ class MockGeminiClient(GeminiClientBase):
             "kebakaran",
         }
         viral_words = {"viral", "sebarkan", "media sosial"}
-        safety_issue = any(word in text for word in safety_words)
+        patient_safety = any(word in text for word in safety_words)
         potential_viral = any(word in text for word in viral_words)
-        if safety_issue:
+        if patient_safety:
             urgency = "critical"
         elif potential_viral or (rating == 1 and sentiment == "negative"):
             urgency = "high"
@@ -84,8 +81,8 @@ class MockGeminiClient(GeminiClientBase):
         keywords = [
             word
             for word in [
-                "produk",
-                "layanan",
+                "dokter",
+                "perawat",
                 "antrean",
                 "administrasi",
                 "parkir",
@@ -109,9 +106,9 @@ class MockGeminiClient(GeminiClientBase):
         actions = {
             "waiting_time": "Evaluasi alur antrean dan kapasitas petugas pada jam ramai.",
             "administration": "Perjelas informasi dan tingkatkan respons petugas administrasi.",
-            "availability": "Tinjau ketersediaan produk atau layanan yang dikeluhkan.",
+            "pharmacy": "Tinjau proses antrean dan waktu layanan farmasi.",
             "parking": "Evaluasi kapasitas dan alur parkir pada jam ramai.",
-            "booking_ordering": "Periksa alur pemesanan dan jalur bantuan pengguna.",
+            "booking_system": "Periksa keandalan aplikasi booking dan jalur bantuan pengguna.",
             "facility": "Periksa kapasitas dan pemeliharaan fasilitas yang dikeluhkan.",
         }
 
@@ -127,5 +124,6 @@ class MockGeminiClient(GeminiClientBase):
             ),
             "keywords": keywords,
             "is_potential_viral": potential_viral,
-            "is_safety_issue": safety_issue,
+            "is_patient_safety_issue": patient_safety,
         }
+

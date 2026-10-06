@@ -179,7 +179,7 @@ def test_jev_calls_systemone_and_maps_the_response():
     assert "Tinjau aspek layanan" in result["recommended_action"]
     assert result["keywords"] == []
     assert result["is_potential_viral"] is True
-    assert result["is_safety_issue"] is False
+    assert result["is_patient_safety_issue"] is False
 
     # Check it passes Pydantic Integration schema validation
     now = datetime.now(timezone.utc)
@@ -205,7 +205,7 @@ def test_jev_calls_systemone_and_maps_the_response():
         "recommended_action": result["recommended_action"],
         "keywords": result["keywords"],
         "is_potential_viral": result["is_potential_viral"],
-        "is_safety_issue": result["is_safety_issue"],
+        "is_patient_safety_issue": result["is_patient_safety_issue"],
     }
 
     # This will raise a ValidationError if any type or constraint fails (e.g. invalid enum choice)

@@ -11,6 +11,7 @@ class CrawlTarget:
     kind: Literal["location", "competitor"]
     id: int
     branch_name: str
+    hospital_name: str
     external_place_id: str | None
     google_maps_url: str | None
     google_reviews_url: str | None
@@ -23,6 +24,7 @@ class CrawlTarget:
             kind="location",
             id=location.id,
             branch_name=location.branch_name,
+            hospital_name=location.hospital_name,
             external_place_id=location.external_place_id,
             google_maps_url=location.google_maps_url,
             google_reviews_url=location.google_reviews_url,
@@ -36,6 +38,7 @@ class CrawlTarget:
             kind="competitor",
             id=competitor.id,
             branch_name=competitor.name,
+            hospital_name=competitor.name,
             external_place_id=competitor.external_place_id,
             google_maps_url=competitor.google_maps_url,
             google_reviews_url=competitor.google_reviews_url,

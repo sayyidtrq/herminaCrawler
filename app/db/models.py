@@ -20,7 +20,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -278,7 +278,7 @@ class Location(_CrawlCoverageColumns, Base):
     __tablename__ = "locations"
     __table_args__ = (
         UniqueConstraint(
-            "company_id", "source", "external_place_id", name="uq_locations_company_source_place"
+            "source", "external_place_id", name="uq_locations_source_place"
         ),
         Index("idx_locations_source_place", "source", "external_place_id"),
         Index("idx_locations_active", "is_active"),
@@ -288,10 +288,7 @@ class Location(_CrawlCoverageColumns, Base):
     company_id: Mapped[int] = mapped_column(
         ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
-    organization_name: Mapped[str] = mapped_column(
-        "hospital_name", String(150), nullable=False
-    )
-    hospital_name = synonym("organization_name")
+    hospital_name: Mapped[str] = mapped_column(String(150), nullable=False)
     branch_name: Mapped[str] = mapped_column(String(150), nullable=False)
     city: Mapped[str | None] = mapped_column(String(100))
     address: Mapped[str | None] = mapped_column(Text)
@@ -386,7 +383,7 @@ class _GoogleReviewColumns:
     )
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw_payload: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
-    review_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    review_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -414,7 +411,6 @@ class Review(_GoogleReviewColumns, Base):
         Index("idx_reviews_rating", "rating"),
         Index("idx_reviews_review_hash", "review_hash"),
         Index("idx_reviews_source_place", "source", "external_place_id"),
-        UniqueConstraint("company_id", "review_hash", name="uq_reviews_company_hash"),
         # Serves the integration keyset scan: tenant, then the exact ORDER BY.
         Index("idx_reviews_company_sync_id", "company_id", "sync_updated_at", "id"),
     )
@@ -467,10 +463,9 @@ class ReviewAnalysis(Base):
     is_potential_viral: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
-    is_safety_issue: Mapped[bool] = mapped_column(
-        "is_patient_safety_issue", Boolean, default=False, nullable=False
+    is_patient_safety_issue: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
     )
-    is_patient_safety_issue = synonym("is_safety_issue")
     model_name: Mapped[str | None] = mapped_column(String(100))
     prompt_version: Mapped[str | None] = mapped_column(String(50))
     raw_response: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
@@ -580,9 +575,6 @@ class CompetitorReview(_GoogleReviewColumns, Base):
         Index("idx_comp_reviews_competitor_id", "competitor_id"),
         Index("idx_comp_reviews_review_time", "review_time"),
         Index("idx_comp_reviews_review_hash", "review_hash"),
-        UniqueConstraint(
-            "competitor_id", "review_hash", name="uq_comp_reviews_competitor_hash"
-        ),
     )
 
     competitor_id: Mapped[int] = mapped_column(

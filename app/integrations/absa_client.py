@@ -6,8 +6,8 @@ from app.config import Settings
 from app.integrations.gemini_client import GeminiClientBase
 
 TAXONOMY_CATEGORIES = {
-    "doctor": "professional_service",
-    "nurse": "staff_service",
+    "doctor": "doctor_service",
+    "nurse": "nurse_service",
     "registration": "administration",
     "bpjs / insurance administration": "administration",
     "waiting time": "waiting_time",
@@ -16,20 +16,17 @@ TAXONOMY_CATEGORIES = {
     "cleanliness": "cleanliness",
     "facilities": "facility",
     "parking": "parking",
-    "price & value": "price_value",
-    "pharmacy": "availability",
-    "emergency / er": "safety_security",
-    "inpatient care": "facility",
+    "price & value": "billing",
+    "pharmacy": "pharmacy",
+    "emergency / er": "emergency_room",
+    "inpatient care": "inpatient",
     "customer service": "customer_service",
-    "service quality": "service_quality",
-    "digital service": "digital_experience",
-    "staff attitude": "staff_service",
-    "professionalism": "professional_service",
-    "security": "safety_security",
-    "food quality": "food_beverage",
-    "product quality": "product_quality",
-    "availability": "availability",
-    "delivery": "delivery_fulfillment",
+    "service quality": "customer_service",
+    "digital service": "booking_system",
+    "staff attitude": "staff_communication",
+    "professionalism": "staff_communication",
+    "security": "security",
+    "food quality": "food",
 }
 
 
@@ -162,6 +159,6 @@ class AbsaClient(GeminiClientBase):
             ),
             "keywords": keywords,
             "is_potential_viral": viral,
-            "is_safety_issue": safety,
+            "is_patient_safety_issue": safety,
             "absa": payload,
         }

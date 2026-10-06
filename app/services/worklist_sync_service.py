@@ -224,11 +224,10 @@ class WorklistSyncService:
                     raw.get("onebox_location_id", raw.get("location_id")),
                     "onebox_location_id",
                 ),
-                "organization_name": str(
-                    raw.get("organization_name")
+                "hospital_name": str(
+                    raw.get("hospital_name")
                     or raw.get("company_name")
                     or raw.get("brand_name")
-                    or raw.get("hospital_name")
                     or raw.get("branch_name")
                     or "Company"
                 ).strip(),
@@ -285,7 +284,7 @@ class WorklistSyncService:
                             company_id=company_id,
                             source="onebox",
                             external_place_id=item["external_place_id"],
-                            organization_name=item["organization_name"],
+                            hospital_name=item["hospital_name"],
                             branch_name=item["branch_name"],
                         )
                         session.add(entity)
@@ -358,7 +357,18 @@ class WorklistSyncService:
             .where(Location.company_id == company_id, Location.external_place_id == external)
             .order_by(Location.id)
         )
-        return entity
+        if entity is not None:
+            return entity
+        conflict = session.scalar(
+            select(Location).where(
+                Location.source == "onebox", Location.external_place_id == external
+            )
+        )
+        if conflict is not None and conflict.company_id != company_id:
+            raise WorklistSyncError(
+                "OneBox external_place_id is already owned by another company."
+            )
+        return None
 
     @staticmethod
     def _find_competitor(session: Session, company_id: int, external: str) -> Competitor | None:
@@ -375,7 +385,7 @@ class WorklistSyncService:
     def _apply_location(entity: Location, item: dict[str, Any], now: datetime) -> None:
         entity.source = "onebox"
         entity.external_place_id = item["external_place_id"]
-        entity.organization_name = item["organization_name"]
+        entity.hospital_name = item["hospital_name"]
         entity.branch_name = item["branch_name"]
         entity.city = item["city"]
         entity.google_maps_url = item["google_maps_url"]
@@ -456,3 +466,5 @@ class WorklistSyncService:
             site_id,
             error,
         )
+
+

@@ -1,1 +1,2 @@
-"""HTTP API layer over the review crawler core services."""
+"""HTTP API layer over the existing Hermina core services."""
+

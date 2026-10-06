@@ -9,41 +9,29 @@ from app.config import Settings
 from app.integrations.gemini_client import GeminiClientBase, ReviewAnalysisResult
 
 ALLOWED_ISSUE_CATEGORIES = {
-    "product_quality",
-    "service_quality",
-    "professional_service",
-    "staff_service",
+    "doctor_service",
+    "nurse_service",
     "administration",
     "waiting_time",
     "cleanliness",
     "facility",
     "parking",
-    "accessibility",
-    "price_value",
-    "billing_payment",
-    "availability",
-    "delivery_fulfillment",
+    "billing",
+    "pharmacy",
+    "emergency_room",
+    "inpatient",
     "customer_service",
-    "booking_ordering",
-    "digital_experience",
-    "safety_security",
-    "food_beverage",
+    "booking_system",
+    "staff_communication",
+    "security",
+    "food",
     "general_praise",
     "other",
 }
 ISSUE_CATEGORY_ALIASES = {
     "waiting_room": "waiting_time",
-    "doctor_service": "professional_service",
-    "nurse_service": "staff_service",
-    "billing": "billing_payment",
-    "pharmacy": "availability",
-    "emergency_room": "safety_security",
-    "inpatient": "facility",
-    "booking_system": "booking_ordering",
-    "staff_communication": "staff_service",
-    "security": "safety_security",
-    "food": "food_beverage",
-    "patient_experience": "service_quality",
+    "staff_service": "staff_communication",
+    "patient_experience": "other",
 }
 
 
@@ -72,9 +60,7 @@ def _normalize_model_output(parsed: dict) -> dict:
     normalized["issue_category"] = (
         category if category in ALLOWED_ISSUE_CATEGORIES else "other"
     )
-    if "is_safety_issue" not in normalized:
-        normalized["is_safety_issue"] = normalized.get("is_patient_safety_issue")
-    for field in ("is_potential_viral", "is_safety_issue"):
+    for field in ("is_potential_viral", "is_patient_safety_issue"):
         normalized[field] = _coerce_model_bool(normalized.get(field))
     return normalized
 

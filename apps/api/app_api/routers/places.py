@@ -12,7 +12,7 @@ router = APIRouter(prefix="/places", tags=["places"])
 
 class PlaceResolveResponse(BaseModel):
     external_place_id: str
-    organization_name: str | None = None
+    hospital_name: str | None = None
     address: str | None = None
     google_maps_url: str | None = None
 
@@ -83,7 +83,7 @@ async def resolve_place_id(
         
     return PlaceResolveResponse(
         external_place_id=place_id,
-        organization_name=name,
+        hospital_name=name,
         address=address,
         google_maps_url=google_maps_url
     )

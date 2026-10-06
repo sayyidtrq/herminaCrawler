@@ -108,7 +108,7 @@ def _require_location(
 
                 WorklistSyncService(
                     company_id=company_id, session_factory=session_factory
-                ).refresh()
+                ).sync()
                 loc_id = session.scalar(
                     select(Location.id).where(
                         Location.company_id == company_id,

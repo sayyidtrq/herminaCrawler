@@ -1,4 +1,4 @@
-"""Versioned integration contract consumed by OneBox.
+"""Frozen v1 contract consumed by OneBox.
 
 Deliberately isolated from ``apps.api.app_api.schemas``: the FE schema is free to
 gain, drop, or rename fields, and none of that may leak into this contract. The
@@ -18,32 +18,28 @@ from pydantic import BaseModel, ConfigDict, field_serializer
 Sentiment = Literal["positive", "neutral", "negative", "mixed", "unknown"]
 Urgency = Literal["low", "medium", "high", "critical", "unknown"]
 IssueCategory = Literal[
-    "product_quality",
-    "service_quality",
-    "professional_service",
-    "staff_service",
+    "doctor_service",
+    "nurse_service",
     "administration",
     "waiting_time",
     "cleanliness",
     "facility",
     "parking",
-    "accessibility",
-    "price_value",
-    "billing_payment",
-    "availability",
-    "delivery_fulfillment",
+    "billing",
+    "pharmacy",
+    "emergency_room",
+    "inpatient",
     "customer_service",
-    "booking_ordering",
-    "digital_experience",
-    "safety_security",
-    "food_beverage",
+    "booking_system",
+    "staff_communication",
+    "security",
+    "food",
     "general_praise",
     "other",
 ]
 AnalysisStatus = Literal["pending", "completed", "failed", "incomplete"]
 
 API_VERSION = "v1"
-OUTPUT_SCHEMA_VERSION = "v2"
 DEFAULT_LIMIT = 100
 MIN_LIMIT = 1
 MAX_LIMIT = 200
@@ -98,7 +94,7 @@ class IntegrationReviewItem(_Base):
     # field it does not recognise from a field this version never promised.
     # OneBox compares it against the version stored per connection and warns on
     # a mismatch; without it emitted here, that check silently never fires.
-    output_schema_version: Literal["v2"] = OUTPUT_SCHEMA_VERSION
+    output_schema_version: Literal["v1"] = API_VERSION
     # Null for every one of these when analyzed is false. keywords and the two
     # flags stay non-null with empty/false defaults so consumers never have to
     # null-check a collection; see api-contract-v1.md.
@@ -110,7 +106,7 @@ class IntegrationReviewItem(_Base):
     recommended_action: str | None = None
     keywords: list[str] = []
     is_potential_viral: bool = False
-    is_safety_issue: bool = False
+    is_patient_safety_issue: bool = False
 
     @field_serializer(
         "review_time",

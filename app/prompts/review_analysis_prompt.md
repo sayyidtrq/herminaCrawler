@@ -16,7 +16,7 @@ Pedoman urgency:
 - low: pujian atau masukan ringan.
 - medium: masalah operasional atau layanan yang perlu ditindaklanjuti.
 - high: keluhan serius, risiko reputasi, atau kegagalan layanan berat.
-- critical: indikasi bahaya keselamatan pelanggan atau pengguna, cedera fisik, risiko hukum, ancaman viral yang
+- critical: indikasi bahaya keselamatan (keselamatan pelanggan/pasien, cedera fisik, bahaya klinis/kesehatan), risiko hukum, ancaman viral yang
   kredibel, atau kegagalan layanan sangat berat.
 - unknown: tidak dapat ditentukan.
 
@@ -27,7 +27,7 @@ Tulis `summary` dan `recommended_action` secara ringkas dalam Bahasa Indonesia.
 Rekomendasi harus operasional, proporsional, dan tidak berasumsi spekulatif di luar fakta ulasan.
 Ambil maksimal lima keyword penting dari isi review.
 
-Tandai `is_safety_issue` hanya jika teks benar-benar menunjukkan
-potensi bahaya keselamatan fisik, kecelakaan, atau insiden keselamatan. Tandai `is_potential_viral`
+Tandai `is_patient_safety_issue` hanya jika teks benar-benar menunjukkan
+potensi bahaya keselamatan fisik, kecelakaan, bahaya klinis/kesehatan, atau insiden keselamatan. Tandai `is_potential_viral`
 hanya jika ada sinyal eskalasi publik/reputasi yang nyata, bukan semata-mata
 karena review bernada negatif.

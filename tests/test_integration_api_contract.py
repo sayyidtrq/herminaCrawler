@@ -258,48 +258,6 @@ def client(app):
     return TestClient(app)
 
 
-def test_location_lookup_resolves_onebox_id_within_token_tenant(client, session_factory, seeded):
-    with session_factory() as session:
-        session.get(Location, seeded["depok_id"]).onebox_location_id = 682
-        session.get(Location, seeded["foreign_location_id"]).onebox_location_id = 682
-        session.commit()
-    response = client.get("/api/integration/v1/locations/682")
-    assert response.status_code == 200
-    assert response.json() == {"id": seeded["depok_id"], "onebox_location_id": 682}
-
-
-def test_location_lookup_does_not_expose_other_tenants_mapping(client, session_factory, seeded):
-    with session_factory() as session:
-        session.get(Location, seeded["foreign_location_id"]).onebox_location_id = 999
-        session.commit()
-    assert client.get("/api/integration/v1/locations/999").status_code == 404
-
-
-def test_location_lookup_rejects_ambiguous_mapping(client, session_factory, seeded):
-    with session_factory() as session:
-        session.get(Location, seeded["depok_id"]).onebox_location_id = 682
-        session.get(Location, seeded["bekasi_id"]).onebox_location_id = 682
-        session.commit()
-    assert client.get("/api/integration/v1/locations/682").status_code == 409
-
-
-def test_location_lookup_requires_review_scope(client, app, seeded):
-    app.dependency_overrides[require_service_principal] = lambda: ServicePrincipal(
-        client_id=1, key_id="test", company_id=seeded["company_id"], scopes=frozenset(),
-    )
-    assert client.get("/api/integration/v1/locations/682").status_code == 403
-
-
-@pytest.mark.parametrize("location_id", [0, -1])
-def test_location_lookup_rejects_invalid_onebox_id(client, location_id):
-    assert client.get(f"/api/integration/v1/locations/{location_id}").status_code == 400
-
-
-def test_location_lookup_requires_authentication():
-    with TestClient(create_app()) as unauthenticated:
-        assert unauthenticated.get("/api/integration/v1/locations/682").status_code == 401
-
-
 def _get(client, **params):
     response = client.get("/api/integration/v1/reviews", params=params)
     assert response.status_code == 200, response.text

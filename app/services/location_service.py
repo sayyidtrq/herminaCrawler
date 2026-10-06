@@ -69,12 +69,7 @@ class LocationService:
             raise ValueError("External place ID is required.")
 
         location = Location(
-            hospital_name=str(
-                data.get("hospital_name")
-                or data.get("company_name")
-                or data.get("brand_name")
-                or "Company"
-            ).strip(),
+            hospital_name=str(data.get("hospital_name") or "Hermina").strip(),
             branch_name=branch_name,
             city=str(data.get("city") or "").strip() or None,
             address=str(data.get("address") or "").strip() or None,

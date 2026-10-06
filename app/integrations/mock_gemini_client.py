@@ -53,19 +53,7 @@ class MockGeminiClient(GeminiClientBase):
                 issue_category = candidate
                 break
 
-        safety_words = {
-            "salah obat",
-            "malpraktik",
-            "darurat",
-            "nyawa",
-            "infeksi",
-            "cedera",
-            "bahaya",
-            "celaka",
-            "kecelakaan",
-            "keracunan",
-            "kebakaran",
-        }
+        safety_words = {"salah obat", "malpraktik", "darurat", "nyawa", "infeksi"}
         viral_words = {"viral", "sebarkan", "media sosial"}
         patient_safety = any(word in text for word in safety_words)
         potential_viral = any(word in text for word in viral_words)
@@ -95,11 +83,11 @@ class MockGeminiClient(GeminiClientBase):
         ][:5]
 
         if sentiment == "negative":
-            summary = "Pelanggan menyampaikan keluhan yang memerlukan tindak lanjut."
+            summary = "Pasien menyampaikan keluhan yang memerlukan tindak lanjut."
         elif sentiment == "mixed":
-            summary = "Pelanggan memberi apresiasi sekaligus menyampaikan kendala."
+            summary = "Pasien memberi apresiasi sekaligus menyampaikan kendala."
         elif sentiment == "positive":
-            summary = "Pelanggan menyampaikan pengalaman pelayanan yang positif."
+            summary = "Pasien menyampaikan pengalaman pelayanan yang positif."
         else:
             summary = "Ulasan bersifat netral atau belum cukup spesifik."
 

@@ -6,7 +6,7 @@ set -Eeuo pipefail
 trap 'echo "[deploy] failed while running: $BASH_COMMAND" >&2' ERR
 
 BRANCH="${DEPLOY_BRANCH:-staging}"
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8000/api/health}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8001/api/health}"
 HEALTH_WAIT_SECONDS="${HEALTH_WAIT_SECONDS:-180}"
 
 cd "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -69,13 +69,7 @@ def settings(tmp_path):
         fetch_limit_per_location=50,
         fetch_timeout_seconds=1,
         fetch_max_retry=0,
-        selenium_headless=True,
-        selenium_default_target_reviews=100,
-        selenium_max_target_reviews=300,
-        selenium_scroll_delay_seconds=2,
-        selenium_max_scroll_attempts=100,
-        selenium_wait_timeout_seconds=20,
-        selenium_user_data_dir=None,
+        crawl_max_target_reviews=300,
         analysis_batch_size=10,
         prompt_version="v1",
         page_size=20,
@@ -96,21 +90,21 @@ def tenants(session_factory):
             company_id=primary.id,
             hospital_name="Hermina",
             branch_name="Cabang Depok",
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-depok",
         )
         bekasi = Location(
             company_id=primary.id,
             hospital_name="Hermina",
             branch_name="Cabang Bekasi",
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-bekasi",
         )
         rival = Location(
             company_id=other.id,
             hospital_name="Rival",
             branch_name="Rival Branch",
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-rival",
         )
         session.add_all([depok, bekasi, rival])
@@ -130,7 +124,7 @@ def add_review(session_factory, *, company_id, location_id, tag, sync_at, text="
         review = Review(
             company_id=company_id,
             location_id=location_id,
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-x",
             external_review_id=tag,
             reviewer_name="Customer",
@@ -652,3 +646,29 @@ def test_location_filter_scopes_the_cycle(client, session_factory, tenants):
 
     collected, _ = drain(client, limit=1, location_id=tenants["depok_id"])
     assert collected == [depok]
+
+
+def test_location_filter_with_onebox_location_id_cursor_paging(client, session_factory, tenants):
+    with session_factory() as session:
+        loc = session.get(Location, tenants["depok_id"])
+        loc.onebox_location_id = 9876
+        session.commit()
+
+    r1 = add_review(
+        session_factory,
+        company_id=tenants["company_id"],
+        location_id=tenants["depok_id"],
+        tag="rev-1",
+        sync_at=BASE,
+    )
+    r2 = add_review(
+        session_factory,
+        company_id=tenants["company_id"],
+        location_id=tenants["depok_id"],
+        tag="rev-2",
+        sync_at=BASE + timedelta(minutes=1),
+    )
+
+    # Calling with onebox_location_id (9876) across multiple pages must succeed without INVALID_CURSOR_CONTEXT
+    collected, _ = drain(client, limit=1, location_id=9876)
+    assert collected == [r1, r2]

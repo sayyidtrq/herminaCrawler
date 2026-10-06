@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -17,6 +17,13 @@ from app.services.crawl_batch_view import serialize_batch
 from app.services.crawl_result import CrawlRequestSnapshot
 
 logger = logging.getLogger(__name__)
+
+_COVERAGE_TO_CRAWL_MODE = {
+    "full_backfill": "initial_backfill",
+    "date_window": "custom_range",
+    "delta": "regular_delta",
+}
+_CRAWL_MODE_TO_COVERAGE = {value: key for key, value in _COVERAGE_TO_CRAWL_MODE.items()}
 
 
 def _iso(value):
@@ -41,6 +48,21 @@ class CrawlQueue:
         self.settings = settings or get_settings()
 
     @staticmethod
+    def _competitor_spec_key(spec: dict) -> str:
+        target_id = spec.get("onebox_target_id")
+        if target_id is not None:
+            return f"target:{target_id}"
+        return str(spec.get("external_place_id") or "").strip()
+
+    @staticmethod
+    def _competitor_key(competitor: Competitor, competitor_specs: dict[str, dict]) -> str:
+        if competitor.onebox_target_id is not None:
+            target_key = f"target:{competitor.onebox_target_id}"
+            if target_key in competitor_specs:
+                return target_key
+        return competitor.external_place_id
+
+    @staticmethod
     def request_fingerprint(
         slot: str | None,
         onebox_location_ids: list[int],
@@ -60,18 +82,21 @@ class CrawlQueue:
             # pengulangan. Tanpa ini permintaan kedua akan diam-diam
             # mengembalikan batch pertama.
             payload["competitor_targets"] = {
-                place_id: {
-                    "target_review_count": competitor_targets[place_id].get(
+                spec_key: {
+                    "target_review_count": competitor_targets[spec_key].get(
                         "target_review_count"
                     ),
                     "date_from": _iso(
-                        competitor_targets[place_id].get("date_from")
+                        competitor_targets[spec_key].get("date_from")
                     ),
-                    "date_to": _iso(competitor_targets[place_id].get("date_to")),
-                    "sort_by": competitor_targets[place_id].get("sort_by")
+                    "date_to": _iso(competitor_targets[spec_key].get("date_to")),
+                    "sort_by": competitor_targets[spec_key].get("sort_by")
                     or "newest",
+                    "coverage": competitor_targets[spec_key].get("coverage"),
+                    "budget": competitor_targets[spec_key].get("budget"),
+                    "crawl_mode": competitor_targets[spec_key].get("crawl_mode"),
                 }
-                for place_id in sorted(competitor_targets)
+                for spec_key in sorted(competitor_targets)
             }
         if target_sorts:
             # Urutan ikut sidik jari: permintaan yang sama dengan urutan berbeda
@@ -85,7 +110,10 @@ class CrawlQueue:
                 str(k): {
                     option_key: _iso(option_value)
                     for option_key, option_value in sorted(options.items())
+                    # Sisa kuota berubah antar-retry satu klik yang sama;
+                    # ia bukan bagian dari identitas permintaan.
                     if option_value is not None
+                    and option_key != "review_quota_remaining"
                 }
                 for k, options in sorted(target_crawl_options.items())
             }
@@ -131,9 +159,9 @@ class CrawlQueue:
         target_ids = sorted(set(onebox_location_ids))
         competitor_specs: dict[str, dict] = {}
         for spec in competitor_targets or []:
-            place_id = str(spec.get("external_place_id") or "").strip()
-            if place_id:
-                competitor_specs[place_id] = spec
+            spec_key = self._competitor_spec_key(spec)
+            if spec_key:
+                competitor_specs[spec_key] = spec
         if not target_ids and not competitor_specs:
             raise CrawlQueueError(
                 400,
@@ -224,34 +252,62 @@ class CrawlQueue:
             # ditarik sebagai pembanding.
             competitors = []
             if competitor_specs:
-                competitors = list(
-                    session.scalars(
-                        select(Competitor)
-                        .where(
-                            Competitor.company_id == company_id,
-                            Competitor.external_place_id.in_(
-                                sorted(competitor_specs)
-                            ),
-                            Competitor.is_active.is_(True),
-                        )
-                        .order_by(Competitor.id)
-                    )
-                )
-                found_places = {
-                    competitor.external_place_id for competitor in competitors
-                }
-                missing_places = [
-                    place
-                    for place in sorted(competitor_specs)
-                    if place not in found_places
+                competitor_target_ids = [
+                    spec["onebox_target_id"]
+                    for spec in competitor_specs.values()
+                    if spec.get("onebox_target_id") is not None
                 ]
-                if missing_places:
-                    raise CrawlQueueError(
-                        404,
-                        "TARGET_NOT_FOUND",
-                        "One or more competitor targets are absent, disabled, "
-                        "or outside this tenant.",
+                place_ids = [
+                    spec["external_place_id"]
+                    for spec in competitor_specs.values()
+                    if spec.get("onebox_target_id") is None and spec.get("external_place_id")
+                ]
+                clauses = []
+                if competitor_target_ids:
+                    clauses.append(Competitor.onebox_target_id.in_(competitor_target_ids))
+                if place_ids:
+                    clauses.append(Competitor.external_place_id.in_(place_ids))
+                competitor_rows = (
+                    list(
+                        session.scalars(
+                            select(Competitor)
+                            .where(
+                                Competitor.company_id == company_id,
+                                or_(*clauses),
+                                Competitor.is_active.is_(True),
+                            )
+                            .order_by(Competitor.id)
+                        )
                     )
+                    if clauses
+                    else []
+                )
+                by_target_id = {
+                    c.onebox_target_id: c
+                    for c in competitor_rows
+                    if c.onebox_target_id is not None
+                }
+                by_place_id = {
+                    c.external_place_id: c
+                    for c in competitor_rows
+                    if c.external_place_id
+                }
+                resolved: dict[str, Competitor] = {}
+                for spec_key, spec in competitor_specs.items():
+                    comp = None
+                    if spec.get("onebox_target_id") is not None:
+                        comp = by_target_id.get(spec["onebox_target_id"])
+                    elif spec.get("external_place_id"):
+                        comp = by_place_id.get(spec["external_place_id"])
+                    if comp is None:
+                        raise CrawlQueueError(
+                            404,
+                            "TARGET_NOT_FOUND",
+                            "One or more competitor targets are absent, disabled, "
+                            "or outside this tenant.",
+                        )
+                    resolved[spec_key] = comp
+                competitors = sorted(dict.fromkeys(resolved.values()), key=lambda c: c.id)
 
             active_batch = self._find_active_batch_for_single_target(
                 session=session,
@@ -280,19 +336,25 @@ class CrawlQueue:
                 options = dict(
                     target_crawl_options.get(location.onebox_location_id) or {}
                 )
-                target_count = target_review_counts.get(
-                    location.onebox_location_id,
-                    location.target_review_count,
-                )
                 date_from, date_to = target_date_ranges.get(
                     location.onebox_location_id, (None, None)
                 )
-                crawl_mode = self._normalize_crawl_mode(
-                    options.get("crawl_mode"), date_from, date_to
+                coverage = self._normalize_coverage(
+                    options.get("coverage"),
+                    options.get("crawl_mode"),
+                    date_from,
+                    date_to,
                 )
-                scan_limit = self._normalize_scan_limit(
-                    options.get("scan_limit"), target_count, crawl_mode
+                legacy_budget = target_review_counts.get(location.onebox_location_id)
+                budget = options.get("budget", legacy_budget)
+                budget = self._validate_coverage(
+                    coverage, budget, date_from, date_to, legacy_budget is not None
                 )
+                target_count = budget or self._default_target_count(
+                    coverage, location.target_review_count
+                )
+                crawl_mode = options.get("crawl_mode") or _COVERAGE_TO_CRAWL_MODE[coverage]
+                scan_limit = self._normalize_scan_limit(options.get("scan_limit"))
                 session.add(
                     CrawlJob(
                         batch_id=batch.id,
@@ -308,9 +370,12 @@ class CrawlQueue:
                         ),
                         target_review_count=target_count,
                         result_json=self._initial_job_result(
+                            coverage=coverage,
+                            budget=budget,
                             crawl_mode=crawl_mode,
-                            max_reviews_to_collect=target_count,
+                            max_reviews_to_collect=budget,
                             scan_limit=scan_limit,
+                            review_quota_remaining=options.get("review_quota_remaining"),
                             dry_run=bool(options.get("dry_run", False)),
                             date_from=date_from,
                             date_to=date_to,
@@ -322,19 +387,23 @@ class CrawlQueue:
                     )
                 )
             for competitor in competitors:
-                spec = competitor_specs[competitor.external_place_id]
-                target_count = (
-                    spec.get("target_review_count")
-                    or competitor.target_review_count
-                )
+                spec_key = self._competitor_key(competitor, competitor_specs)
+                spec = competitor_specs[spec_key]
                 date_from = spec.get("date_from")
                 date_to = spec.get("date_to")
-                crawl_mode = self._normalize_crawl_mode(
-                    spec.get("crawl_mode"), date_from, date_to
+                coverage = self._normalize_coverage(
+                    spec.get("coverage"), spec.get("crawl_mode"), date_from, date_to
                 )
-                scan_limit = self._normalize_scan_limit(
-                    spec.get("scan_limit"), target_count, crawl_mode
+                legacy_budget = spec.get("target_review_count")
+                budget = self._validate_coverage(
+                    coverage, spec.get("budget", legacy_budget), date_from, date_to,
+                    legacy_budget is not None,
                 )
+                target_count = budget or self._default_target_count(
+                    coverage, competitor.target_review_count
+                )
+                crawl_mode = spec.get("crawl_mode") or _COVERAGE_TO_CRAWL_MODE[coverage]
+                scan_limit = self._normalize_scan_limit(spec.get("scan_limit"))
                 session.add(
                     CrawlJob(
                         batch_id=batch.id,
@@ -349,9 +418,12 @@ class CrawlQueue:
                         sort_by=spec.get("sort_by") or "newest",
                         target_review_count=target_count,
                         result_json=self._initial_job_result(
+                            coverage=coverage,
+                            budget=budget,
                             crawl_mode=crawl_mode,
-                            max_reviews_to_collect=target_count,
+                            max_reviews_to_collect=budget,
                             scan_limit=scan_limit,
+                            review_quota_remaining=spec.get("review_quota_remaining"),
                             dry_run=bool(spec.get("dry_run", False)),
                             date_from=date_from,
                             date_to=date_to,
@@ -397,33 +469,84 @@ class CrawlQueue:
         return "regular_delta"
 
     @staticmethod
+    def _normalize_coverage(
+        coverage: str | None,
+        crawl_mode: str | None,
+        date_from: datetime | None,
+        date_to: datetime | None,
+    ) -> str:
+        if coverage in _COVERAGE_TO_CRAWL_MODE:
+            return coverage
+        return _CRAWL_MODE_TO_COVERAGE.get(
+            crawl_mode, "date_window" if date_from or date_to else "delta"
+        )
+
+    def _default_target_count(self, coverage: str, target_review_count: int | None) -> int:
+        # date_window dan full_backfill tidak dibatasi target per cabang;
+        # delta memakai target cabang (batas yang diatur di OneBox), lalu default.
+        if coverage in {"date_window", "full_backfill"}:
+            return self.settings.crawl_max_target_reviews
+        return target_review_count or self.settings.crawl_default_review_limit
+
+    @staticmethod
+    def _validate_coverage(
+        coverage: str,
+        budget: int | None,
+        date_from: datetime | None,
+        date_to: datetime | None,
+        legacy_budget: bool,
+    ) -> int | None:
+        if coverage == "date_window":
+            if date_from is None and date_to is None:
+                raise CrawlQueueError(
+                    400,
+                    "INVALID_PARAMETER",
+                    "date_window coverage requires date_from or date_to.",
+                )
+            if budget is not None and not legacy_budget:
+                raise CrawlQueueError(
+                    400,
+                    "INVALID_PARAMETER",
+                    "budget is not allowed for date_window coverage.",
+                )
+            if budget is not None:
+                logger.info("Ignoring legacy review limit for date_window coverage.")
+            return None
+        if coverage == "full_backfill" and (date_from is not None or date_to is not None):
+            raise CrawlQueueError(
+                400,
+                "INVALID_PARAMETER",
+                "full_backfill coverage does not accept date bounds.",
+            )
+        return budget
+
+    @staticmethod
     def _normalize_scan_limit(
         scan_limit: object,
-        max_reviews_to_collect: int,
-        crawl_mode: str,
-    ) -> int:
-        default_multiplier = 5 if crawl_mode == "custom_range" else 1
-        if crawl_mode == "initial_backfill":
-            default_multiplier = 10
-        default_limit = max(max_reviews_to_collect, max_reviews_to_collect * default_multiplier)
+    ) -> int | None:
         try:
-            value = int(scan_limit) if scan_limit is not None else default_limit
+            return int(scan_limit) if scan_limit is not None else None
         except (TypeError, ValueError):
-            value = default_limit
-        return max(max_reviews_to_collect, min(value, 5000))
+            return None
 
     @staticmethod
     def _initial_job_result(
         *,
+        coverage: str,
+        budget: int | None,
         crawl_mode: str,
-        max_reviews_to_collect: int,
-        scan_limit: int,
+        max_reviews_to_collect: int | None,
+        scan_limit: int | None,
         dry_run: bool,
+        review_quota_remaining: int | None = None,
         date_from: datetime | None,
         date_to: datetime | None,
         sort_by: str,
     ) -> dict:
         request: CrawlRequestSnapshot = {
+            "coverage": coverage,
+            "budget": budget,
+            "review_quota_remaining": review_quota_remaining,
             "crawl_mode": crawl_mode,
             "max_reviews_to_collect": max_reviews_to_collect,
             "scan_limit": scan_limit,
@@ -470,7 +593,8 @@ class CrawlQueue:
             )
         else:
             competitor = competitors[0]
-            spec = competitor_specs[competitor.external_place_id]
+            spec_key = self._competitor_key(competitor, competitor_specs)
+            spec = competitor_specs[spec_key]
             conditions.extend(
                 [
                     CrawlJob.competitor_id == competitor.id,
@@ -555,4 +679,3 @@ class CrawlQueue:
                 serialize_batch(session, batch, include_jobs=False)
                 for batch in batches
             ]
-

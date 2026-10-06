@@ -3,36 +3,52 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from openai import OpenAI
+from openai import APIError, OpenAI
 
 from app.config import Settings
 from app.integrations.gemini_client import GeminiClientBase, ReviewAnalysisResult
 
 ALLOWED_ISSUE_CATEGORIES = {
-    "doctor_service",
-    "nurse_service",
+    "product_quality",
+    "service_quality",
+    "professional_service",
+    "staff_service",
     "administration",
     "waiting_time",
     "cleanliness",
     "facility",
     "parking",
-    "billing",
-    "pharmacy",
-    "emergency_room",
-    "inpatient",
+    "accessibility",
+    "price_value",
+    "billing_payment",
+    "availability",
+    "delivery_fulfillment",
     "customer_service",
-    "booking_system",
-    "staff_communication",
-    "security",
-    "food",
+    "booking_ordering",
+    "digital_experience",
+    "safety_security",
+    "food_beverage",
     "general_praise",
     "other",
 }
 ISSUE_CATEGORY_ALIASES = {
     "waiting_room": "waiting_time",
-    "staff_service": "staff_communication",
-    "patient_experience": "other",
+    "doctor_service": "professional_service",
+    "nurse_service": "staff_service",
+    "billing": "billing_payment",
+    "pharmacy": "availability",
+    "emergency_room": "safety_security",
+    "inpatient": "facility",
+    "booking_system": "booking_ordering",
+    "staff_communication": "staff_service",
+    "security": "safety_security",
+    "food": "food_beverage",
+    "patient_experience": "service_quality",
 }
+
+
+class LLMProviderError(RuntimeError):
+    """An analysis provider request failed before producing a response."""
 
 
 def _coerce_model_bool(value) -> bool:
@@ -56,7 +72,9 @@ def _normalize_model_output(parsed: dict) -> dict:
     normalized["issue_category"] = (
         category if category in ALLOWED_ISSUE_CATEGORIES else "other"
     )
-    for field in ("is_potential_viral", "is_patient_safety_issue"):
+    if "is_safety_issue" not in normalized:
+        normalized["is_safety_issue"] = normalized.get("is_patient_safety_issue")
+    for field in ("is_potential_viral", "is_safety_issue"):
         normalized[field] = _coerce_model_bool(normalized.get(field))
     return normalized
 
@@ -84,14 +102,22 @@ def _build_example_from_schema(schema: dict) -> dict:
 
 
 class LocalLLMClient(GeminiClientBase):
-    def __init__(self, settings: Settings, sdk_client: OpenAI | None = None):
+    def __init__(
+        self,
+        settings: Settings,
+        sdk_client: OpenAI | None = None,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        model_name: str | None = None,
+    ):
         self.settings = settings
-        self.model_name = settings.local_llm_model
+        self.model_name = model_name or settings.local_llm_model
         self.last_usage: dict[str, int] = {}
 
         self.client = sdk_client or OpenAI(
-            base_url=self.settings.local_llm_base_url,
-            api_key=self.settings.local_llm_api_key or "ollama",
+            base_url=base_url or self.settings.local_llm_base_url,
+            api_key=api_key or self.settings.local_llm_api_key or "ollama",
         )
 
         prompt_path = (
@@ -137,22 +163,26 @@ class LocalLLMClient(GeminiClientBase):
 
     def analyze_review(self, review: dict) -> dict:
         prompt = (
-            "Analisis review rumah sakit berikut sesuai instruksi sistem.\n\n"
+            "Analisis review berikut sesuai instruksi sistem.\n\n"
             f"Rating: {review.get('rating')}\n"
             f"Reviewer: {review.get('reviewer_name') or 'Anonymous'}\n"
             f"Waktu review: {review.get('review_time') or 'unknown'}\n"
             f"Teks review:\n{review.get('review_text') or ''}"
         )
 
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": self.system_instruction},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"},
-        )
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": self.system_instruction},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"},
+                max_tokens=1000,
+            )
+        except APIError as exc:
+            raise LLMProviderError(f"OpenAI API request failed: {exc}") from exc
 
         usage = getattr(response, "usage", None)
         self.last_usage = {

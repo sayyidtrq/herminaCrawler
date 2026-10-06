@@ -1,4 +1,17 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: hermina-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   api:
     # image: lets the deploy server do `docker compose pull` against the
     # image CI built and pushed, without needing the Dockerfile/build
@@ -12,34 +25,53 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PYTHONUNBUFFERED: "1"
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
       - ./exports:/app/exports
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
 
 
   crawl-worker:
     image: ghcr.io/sayyidtrq/herminacrawler:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: hermina-crawl-worker
     restart: unless-stopped
     env_file:
       - .env
     environment:
       SKIP_MIGRATIONS: "true"
-      SELENIUM_HEADLESS: "${SELENIUM_HEADLESS:-true}"
-      SELENIUM_USER_DATA_DIR: /app/.selenium-profile
-    command: ["/app/scripts/run_crawl_worker.sh"]
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PYTHONUNBUFFERED: "1"
     volumes:
-      - selenium-profile:/app/.selenium-profile
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+      - ./exports:/app/exports
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["/app/scripts/run_crawl_worker.sh"]
     depends_on:
+      redis:
+        condition: service_healthy
       api:
         condition: service_healthy
 
 volumes:
-  selenium-profile:
+  redis-data:

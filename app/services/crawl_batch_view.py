@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import CrawlBatch, CrawlJob
+from app.db.models import Competitor, CrawlBatch, CrawlJob
 from app.services.crawl_result import (
     matched_count,
     rating_snapshot,
@@ -9,6 +9,12 @@ from app.services.crawl_result import (
     stop_reason,
 )
 
+
+
+def _public_status(status: str) -> str:
+    # Run Apify yang diparkir tetap "running" bagi OneBox; status internal ini
+    # tidak termasuk kontrak.
+    return "running" if status == "awaiting_source" else status
 
 def serialize_batch(
     session: Session, batch: CrawlBatch, include_jobs: bool = True
@@ -19,6 +25,15 @@ def serialize_batch(
             .where(CrawlJob.batch_id == batch.id)
             .order_by(CrawlJob.id)
         )
+    )
+    competitor_ids = {job.competitor_id for job in jobs if job.competitor_id is not None}
+    target_ids = (
+        dict(session.execute(
+            select(Competitor.id, Competitor.onebox_target_id).where(
+                Competitor.id.in_(competitor_ids)
+            )
+        ).all())
+        if include_jobs and competitor_ids else {}
     )
     counts = {
         status: 0
@@ -45,7 +60,8 @@ def serialize_batch(
         "failed": 0,
     }
     for job in jobs:
-        counts[job.status] = counts.get(job.status, 0) + 1
+        public_status = _public_status(job.status)
+        counts[public_status] = counts.get(public_status, 0) + 1
         review_counts["target"] += job.target_review_count
         result = job.result_json or {}
         # Job yang masih berjalan belum punya total_fetched; yang ada baru
@@ -112,6 +128,7 @@ def serialize_batch(
             {
                 "job_id": job.id,
                 "onebox_location_id": job.onebox_location_id,
+                "onebox_target_id": target_ids.get(job.competitor_id),
                 "competitor_id": job.competitor_id,
                 "kind": (
                     "competitor"
@@ -131,9 +148,13 @@ def serialize_batch(
                 "crawl_mode": ((job.result_json or {}).get("request") or {}).get(
                     "crawl_mode"
                 ),
-                "stop_reason": stop_reason(job.result_json or {}),
+                "stop_reason": (
+                    stop_reason(job.result_json or {})
+                    if job.status not in ("queued", "running", "awaiting_source", "retry_wait")
+                    else None
+                ),
                 "rating_snapshot": rating_snapshot(job.result_json or {}),
-                "status": job.status,
+                "status": _public_status(job.status),
                 "attempts": job.attempts,
                 "max_attempts": job.max_attempts,
                 "result": job.result_json,
@@ -168,6 +189,8 @@ def batch_kind(jobs) -> str:
 def batch_stop_reasons(jobs) -> tuple[str | None, dict[str, int]]:
     counts: dict[str, int] = {}
     for job in jobs:
+        if job.status in ("queued", "running", "awaiting_source", "retry_wait"):
+            continue
         reason = stop_reason(job.result_json or {})
         if not reason:
             continue
@@ -177,4 +200,3 @@ def batch_stop_reasons(jobs) -> tuple[str | None, dict[str, int]]:
     if len(counts) == 1:
         return next(iter(counts)), counts
     return "mixed", counts
-

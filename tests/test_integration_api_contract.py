@@ -1,4 +1,4 @@
-"""Contract tests for the OneBox v1 integration endpoint (VOC-CS-01).
+"""Contract tests for the OneBox v2 integration endpoint (VOC-CS-01).
 
 These tests exist to make a breaking change loud. OneBox parses this response, so
 a dropped field, a widened enum, a "+00:00" instead of a "Z", or a leaked
@@ -14,17 +14,17 @@ from typing import get_args
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models import Company, Location, Review, ReviewAnalysis
 from app.services.analysis_service import (
-    ANALYSIS_STATUSES,
     ALLOWED_CATEGORIES,
     ALLOWED_SENTIMENTS,
     ALLOWED_URGENCIES,
+    ANALYSIS_STATUSES,
 )
 from apps.api.app_api.integration_schemas import (
     AnalysisStatus,
@@ -48,6 +48,7 @@ FORBIDDEN_FIELDS = {"raw_payload", "raw_response", "company_id"}
 EXPECTED_ITEM_FIELDS = {
     "id",
     "location_id",
+    "onebox_location_id",
     "location",
     "source",
     "external_place_id",
@@ -55,9 +56,16 @@ EXPECTED_ITEM_FIELDS = {
     "review_hash",
     "reviewer_name",
     "reviewer_profile_url",
+    "review_url",
+    "review_photo_urls",
     "rating",
     "review_text",
     "review_time",
+    # Aditif (spec §5.5): presisi tanggal dan penanda edit.
+    "review_time_precision",
+    "date_approximate",
+    "is_edited",
+    "edited_at",
     "owner_response_text",
     "owner_response_time",
     "updated_at",
@@ -76,7 +84,7 @@ EXPECTED_ITEM_FIELDS = {
     "recommended_action",
     "keywords",
     "is_potential_viral",
-    "is_patient_safety_issue",
+    "is_safety_issue",
 }
 
 ANALYSIS_ONLY_FIELDS = {
@@ -113,21 +121,21 @@ def seeded(session_factory):
             company_id=tenant.id,
             hospital_name="Hermina",
             branch_name="Cabang Depok",
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-depok-1",
         )
         bekasi = Location(
             company_id=tenant.id,
             hospital_name="Hermina",
             branch_name="Cabang Bekasi",
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-bekasi-1",
         )
         foreign = Location(
             company_id=other.id,
             hospital_name="Rival",
             branch_name="Rival Branch",
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-rival-1",
         )
         session.add_all([depok, bekasi, foreign])
@@ -136,7 +144,7 @@ def seeded(session_factory):
         positive = Review(
             company_id=tenant.id,
             location_id=depok.id,
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-depok-1",
             external_review_id="review-depok-1",
             reviewer_name="Customer A",
@@ -155,7 +163,7 @@ def seeded(session_factory):
         negative = Review(
             company_id=tenant.id,
             location_id=depok.id,
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-depok-1",
             external_review_id="review-depok-2",
             reviewer_name="Customer B",
@@ -172,7 +180,7 @@ def seeded(session_factory):
         unanalyzed = Review(
             company_id=tenant.id,
             location_id=bekasi.id,
-            source="selenium_google_maps",
+            source="apify_google_maps",
             external_place_id="place-bekasi-1",
             rating=3,
             review_text="Parkirannya sempit.",
@@ -250,6 +258,48 @@ def client(app):
     return TestClient(app)
 
 
+def test_location_lookup_resolves_onebox_id_within_token_tenant(client, session_factory, seeded):
+    with session_factory() as session:
+        session.get(Location, seeded["depok_id"]).onebox_location_id = 682
+        session.get(Location, seeded["foreign_location_id"]).onebox_location_id = 682
+        session.commit()
+    response = client.get("/api/integration/v1/locations/682")
+    assert response.status_code == 200
+    assert response.json() == {"id": seeded["depok_id"], "onebox_location_id": 682}
+
+
+def test_location_lookup_does_not_expose_other_tenants_mapping(client, session_factory, seeded):
+    with session_factory() as session:
+        session.get(Location, seeded["foreign_location_id"]).onebox_location_id = 999
+        session.commit()
+    assert client.get("/api/integration/v1/locations/999").status_code == 404
+
+
+def test_location_lookup_rejects_ambiguous_mapping(client, session_factory, seeded):
+    with session_factory() as session:
+        session.get(Location, seeded["depok_id"]).onebox_location_id = 682
+        session.get(Location, seeded["bekasi_id"]).onebox_location_id = 682
+        session.commit()
+    assert client.get("/api/integration/v1/locations/682").status_code == 409
+
+
+def test_location_lookup_requires_review_scope(client, app, seeded):
+    app.dependency_overrides[require_service_principal] = lambda: ServicePrincipal(
+        client_id=1, key_id="test", company_id=seeded["company_id"], scopes=frozenset(),
+    )
+    assert client.get("/api/integration/v1/locations/682").status_code == 403
+
+
+@pytest.mark.parametrize("location_id", [0, -1])
+def test_location_lookup_rejects_invalid_onebox_id(client, location_id):
+    assert client.get(f"/api/integration/v1/locations/{location_id}").status_code == 400
+
+
+def test_location_lookup_requires_authentication():
+    with TestClient(create_app()) as unauthenticated:
+        assert unauthenticated.get("/api/integration/v1/locations/682").status_code == 401
+
+
 def _get(client, **params):
     response = client.get("/api/integration/v1/reviews", params=params)
     assert response.status_code == 200, response.text
@@ -299,6 +349,35 @@ def test_success_response_validates_against_contract(client):
     assert payload["meta"]["request_id"]
 
 
+def test_response_standardization_is_visible_in_terminal(client):
+    headers = {"X-Request-ID": "response-standardization-test"}
+    success = client.get(
+        "/api/integration/v1/reviews", params={"limit": 1}, headers=headers
+    )
+    error = client.get(
+        "/api/integration/v1/reviews", params={"limit": 0}, headers=headers
+    )
+
+    success_payload = success.json()
+    error_payload = error.json()
+
+    assert success.status_code == 200
+    assert set(success_payload) == {"data", "page", "meta"}
+    assert success_payload["meta"] == {
+        "api_version": "v1",
+        "request_id": "response-standardization-test",
+    }
+    assert error.status_code == 400
+    assert set(error_payload) == {"error"}
+    assert set(error_payload["error"]) == {"code", "message", "request_id"}
+    assert error_payload["error"]["request_id"] == "response-standardization-test"
+
+    print("\n=== STANDARDIZED SUCCESS RESPONSE (200) ===")
+    print(json.dumps(success_payload, indent=2))
+    print("\n=== STANDARDIZED ERROR RESPONSE (400) ===")
+    print(json.dumps(error_payload, indent=2))
+
+
 def test_item_exposes_exactly_the_contract_fields(client):
     payload = _get(client, limit=100)
     for item in payload["data"]:
@@ -344,7 +423,7 @@ def test_unanalyzed_review_nulls_every_analysis_field(client):
     # Collections stay non-null so consumers never null-check them.
     assert item["keywords"] == []
     assert item["is_potential_viral"] is False
-    assert item["is_patient_safety_issue"] is False
+    assert item["is_safety_issue"] is False
 
 
 def test_analyzed_reviews_carry_their_analysis(client):
@@ -356,8 +435,8 @@ def test_analyzed_reviews_carry_their_analysis(client):
     assert critical["analysis_status"] == "completed"
     assert critical["sentiment"] == "negative"
     assert critical["urgency"] == "critical"
-    assert critical["issue_category"] == "emergency_room"
-    assert critical["is_patient_safety_issue"] is True
+    assert critical["issue_category"] == "safety_security"
+    assert critical["is_safety_issue"] is True
     assert critical["summary"]
     assert critical["recommended_action"]
 
@@ -416,6 +495,33 @@ def test_sync_updated_at_is_exposed_and_differs_from_updated_at(client, seeded):
     # No analysis: watermark equals the review's own updated_at.
     unanalyzed = by_hash["hash-unanalyzed"]
     assert unanalyzed["sync_updated_at"] == unanalyzed["updated_at"]
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        ("customer service", "customer_service"),
+        ("service quality", "service_quality"),
+        ("waiting time", "waiting_time"),
+        ("General", "other"),
+        ("future category", "other"),
+    ],
+)
+def test_historical_issue_category_is_normalized(
+    client, session_factory, stored, expected
+):
+    with session_factory() as session:
+        analysis = session.scalar(
+            select(ReviewAnalysis)
+            .join(Review, Review.id == ReviewAnalysis.review_id)
+            .where(Review.review_hash == "hash-positive")
+        )
+        analysis.issue_category = stored
+        session.commit()
+
+    payload = _get(client, limit=100)
+    by_hash = {item["review_hash"]: item for item in payload["data"]}
+    assert by_hash["hash-positive"]["issue_category"] == expected
 
 
 # --------------------------------------------------------------------------- #

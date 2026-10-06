@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import DEFAULT_REVIEW_LIMIT, MAX_REVIEW_LIMIT
 from app.db.models import Location
 from app.db.session import get_session_factory
 from app.services.location_repository import LocationRepository
@@ -23,7 +24,7 @@ def _optional_decimal(value: object, field_name: str) -> Decimal | None:
 
 class LocationService:
     editable_fields = {
-        "hospital_name",
+        "organization_name",
         "branch_name",
         "city",
         "address",
@@ -68,7 +69,13 @@ class LocationService:
             raise ValueError("External place ID is required.")
 
         location = Location(
-            hospital_name=str(data.get("hospital_name") or "Hermina").strip(),
+            organization_name=str(
+                data.get("organization_name")
+                or data.get("company_name")
+                or data.get("brand_name")
+                or data.get("hospital_name")
+                or "Company"
+            ).strip(),
             branch_name=branch_name,
             city=str(data.get("city") or "").strip() or None,
             address=str(data.get("address") or "").strip() or None,
@@ -81,7 +88,7 @@ class LocationService:
                 str(data.get("google_reviews_url") or "").strip() or None
             ),
             target_review_count=self._validate_target_count(
-                data.get("target_review_count", 100)
+                data.get("target_review_count", DEFAULT_REVIEW_LIMIT)
             ),
             is_active=bool(data.get("is_active", True)),
             company_id=self.company_id,
@@ -186,9 +193,11 @@ class LocationService:
     @staticmethod
     def _validate_target_count(value: object) -> int:
         try:
-            target = int(value or 100)
+            target = int(value or DEFAULT_REVIEW_LIMIT)
         except (TypeError, ValueError) as exc:
             raise ValueError("Target review count must be numeric.") from exc
-        if not 1 <= target <= 300:
-            raise ValueError("Target review count must be between 1 and 300.")
+        if not 1 <= target <= MAX_REVIEW_LIMIT:
+            raise ValueError(
+                f"Target review count must be between 1 and {MAX_REVIEW_LIMIT}."
+            )
         return target

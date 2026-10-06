@@ -54,13 +54,7 @@ def settings(tmp_path):
         fetch_limit_per_location=50,
         fetch_timeout_seconds=1,
         fetch_max_retry=0,
-        selenium_headless=True,
-        selenium_default_target_reviews=100,
-        selenium_max_target_reviews=300,
-        selenium_scroll_delay_seconds=2,
-        selenium_max_scroll_attempts=100,
-        selenium_wait_timeout_seconds=20,
-        selenium_user_data_dir=None,
+        crawl_max_target_reviews=300,
         analysis_batch_size=3,
         prompt_version="v1",
         page_size=20,
@@ -322,9 +316,37 @@ def test_local_llm_normalizes_invalid_category_and_boolean(settings):
         }
     )
 
-    assert result["issue_category"] == "staff_communication"
+    assert result["issue_category"] == "staff_service"
     assert result["is_potential_viral"] is False
-    assert result["is_patient_safety_issue"] is False
+    assert result["is_safety_issue"] is False
+
+
+def test_local_llm_wraps_openai_api_errors(settings):
+    import httpx
+    import openai
+
+    from app.integrations.local_llm_client import LLMProviderError
+
+    response = httpx.Response(
+        429,
+        request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+    )
+
+    def fail(**_):
+        raise openai.RateLimitError(
+            "No credits remaining.",
+            response=response,
+            body={"code": "credit_balance_exhausted"},
+        )
+
+    sdk = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fail))
+    )
+
+    with pytest.raises(LLMProviderError, match="OpenAI API request failed"):
+        LocalLLMClient(settings, sdk_client=sdk).analyze_review(
+            {"rating": 3, "review_text": "Antrean lama."}
+        )
 
 
 def test_summary_and_exports(session_factory, settings, company_id):

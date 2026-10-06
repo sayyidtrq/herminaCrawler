@@ -1,4 +1,4 @@
-"""Frozen v1 contract consumed by OneBox.
+"""Versioned integration contract consumed by OneBox.
 
 Deliberately isolated from ``apps.api.app_api.schemas``: the FE schema is free to
 gain, drop, or rename fields, and none of that may leak into this contract. The
@@ -18,28 +18,32 @@ from pydantic import BaseModel, ConfigDict, field_serializer
 Sentiment = Literal["positive", "neutral", "negative", "mixed", "unknown"]
 Urgency = Literal["low", "medium", "high", "critical", "unknown"]
 IssueCategory = Literal[
-    "doctor_service",
-    "nurse_service",
+    "product_quality",
+    "service_quality",
+    "professional_service",
+    "staff_service",
     "administration",
     "waiting_time",
     "cleanliness",
     "facility",
     "parking",
-    "billing",
-    "pharmacy",
-    "emergency_room",
-    "inpatient",
+    "accessibility",
+    "price_value",
+    "billing_payment",
+    "availability",
+    "delivery_fulfillment",
     "customer_service",
-    "booking_system",
-    "staff_communication",
-    "security",
-    "food",
+    "booking_ordering",
+    "digital_experience",
+    "safety_security",
+    "food_beverage",
     "general_praise",
     "other",
 ]
 AnalysisStatus = Literal["pending", "completed", "failed", "incomplete"]
 
 API_VERSION = "v1"
+OUTPUT_SCHEMA_VERSION = "v2"
 DEFAULT_LIMIT = 100
 MIN_LIMIT = 1
 MAX_LIMIT = 200
@@ -64,6 +68,7 @@ class _Base(BaseModel):
 class IntegrationReviewItem(_Base):
     id: int
     location_id: int
+    onebox_location_id: int | None = None
     location: str
     source: str
     external_place_id: str | None = None
@@ -71,9 +76,17 @@ class IntegrationReviewItem(_Base):
     review_hash: str
     reviewer_name: str | None = None
     reviewer_profile_url: str | None = None
+    review_url: str | None = None
+    review_photo_urls: list[str] = []
     rating: int | None = None
     review_text: str
     review_time: datetime | None = None
+    # Tanggal Google kebanyakan taksiran (spec B17). Opsional dan aditif:
+    # konsumen lama cukup mengabaikannya.
+    review_time_precision: str | None = None
+    date_approximate: bool = False
+    is_edited: bool = False
+    edited_at: datetime | None = None
     owner_response_text: str | None = None
     owner_response_time: datetime | None = None
     updated_at: datetime
@@ -85,7 +98,7 @@ class IntegrationReviewItem(_Base):
     # field it does not recognise from a field this version never promised.
     # OneBox compares it against the version stored per connection and warns on
     # a mismatch; without it emitted here, that check silently never fires.
-    output_schema_version: Literal["v1"] = API_VERSION
+    output_schema_version: Literal["v2"] = OUTPUT_SCHEMA_VERSION
     # Null for every one of these when analyzed is false. keywords and the two
     # flags stay non-null with empty/false defaults so consumers never have to
     # null-check a collection; see api-contract-v1.md.
@@ -97,10 +110,14 @@ class IntegrationReviewItem(_Base):
     recommended_action: str | None = None
     keywords: list[str] = []
     is_potential_viral: bool = False
-    is_patient_safety_issue: bool = False
+    is_safety_issue: bool = False
 
     @field_serializer(
-        "review_time", "owner_response_time", "updated_at", "sync_updated_at"
+        "review_time",
+        "edited_at",
+        "owner_response_time",
+        "updated_at",
+        "sync_updated_at",
     )
     def _serialize_datetime(self, value: datetime | None) -> str | None:
         return to_utc_z(value) if value is not None else None

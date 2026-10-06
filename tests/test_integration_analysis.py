@@ -7,6 +7,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models import Company, Location, Review, ReviewAnalysis
+from app.integrations.mock_gemini_client import MockGeminiClient
+from app.services import analysis_service as analysis_service_module
 from app.services.analysis_service import RATING_FALLBACK_MODEL
 from apps.api.app_api.routers import integration_analysis as integration_analysis_router
 from apps.api.app_api.routers.integration_analysis import (
@@ -36,7 +38,7 @@ def make_database():
                 company_id=companies[0].id,
                 hospital_name="Hospital A",
                 branch_name="Branch A",
-                source="selenium_google_maps",
+                source="apify_google_maps",
                 external_place_id="place-a",
                 ai_enabled=True,
             ),
@@ -44,7 +46,7 @@ def make_database():
                 company_id=companies[1].id,
                 hospital_name="Hospital B",
                 branch_name="Branch B",
-                source="selenium_google_maps",
+                source="apify_google_maps",
                 external_place_id="place-b",
                 ai_enabled=True,
             ),
@@ -56,7 +58,7 @@ def make_database():
                 Review(
                     company_id=companies[0].id,
                     location_id=locations[0].id,
-                    source="selenium_google_maps",
+                    source="apify_google_maps",
                     external_review_id="review-a",
                     rating=1,
                     review_text="",
@@ -66,7 +68,7 @@ def make_database():
                 Review(
                     company_id=companies[1].id,
                     location_id=locations[1].id,
-                    source="selenium_google_maps",
+                    source="apify_google_maps",
                     external_review_id="review-b",
                     rating=1,
                     review_text="",
@@ -117,6 +119,28 @@ def test_service_token_runs_analysis_only_for_its_tenant():
     assert status_by_company == {1: "completed", 2: "pending"}
 
 
+def test_service_token_selects_provider_per_request(monkeypatch):
+    factory = make_database()
+    client = make_client(factory, principal(1))
+    selected = []
+
+    def create_client(settings, provider=None):
+        selected.append(provider)
+        return MockGeminiClient()
+
+    monkeypatch.setattr(
+        analysis_service_module, "create_analysis_client", create_client
+    )
+
+    response = client.post(
+        "/api/integration/v1/analysis/pending",
+        json={"provider": "openai"},
+    )
+
+    assert response.status_code == 200
+    assert selected == ["openai"]
+
+
 def test_service_token_cannot_rerun_another_tenants_review():
     factory = make_database()
     client = make_client(factory, principal(1))
@@ -151,15 +175,24 @@ def test_failed_single_review_rerun_is_not_reported_as_http_success(monkeypatch)
 def test_service_token_lists_models_from_the_active_provider(monkeypatch):
     factory = make_database()
     client = make_client(factory, principal(1))
+    provider = type(
+        "Provider",
+        (),
+        {
+            "model_name": "model-a",
+            "list_models": lambda self: ["model-a", "model-b:latest"],
+        },
+    )()
     monkeypatch.setattr(
-        integration_analysis_router.LocalLLMClient,
-        "list_models",
-        lambda self: ["model-a", "model-b:latest"],
+        integration_analysis_router,
+        "create_analysis_client",
+        lambda settings, selected=None: provider,
     )
 
     response = client.get("/api/integration/v1/analysis/models")
 
     assert response.status_code == 200
+    assert response.json()["data"]["provider"] == "absa"
     assert response.json()["data"]["models"] == ["model-a", "model-b:latest"]
     assert response.json()["data"]["default_model"]
 
@@ -191,3 +224,21 @@ def test_service_token_can_monitor_and_rollback_its_analysis():
     assert rollback.json()["data"]["reviews_affected"] == 1
     with factory() as session:
         assert session.scalar(select(func.count(ReviewAnalysis.id))) == 0
+
+
+def test_analyze_pending_resolves_onebox_location_id():
+    factory = make_database()
+    with factory() as session:
+        loc = session.scalar(select(Location).where(Location.id == 1))
+        loc.onebox_location_id = 674
+        session.commit()
+
+    client = make_client(factory, principal(1))
+    # Call using onebox_location_id passed as location_id (OneBox backward compat)
+    res1 = client.post("/api/integration/v1/analysis/pending", json={"location_id": 674})
+    assert res1.status_code == 200, res1.text
+    assert res1.json()["data"]["total"] == 1
+
+    # Call using explicit onebox_location_id
+    res2 = client.post("/api/integration/v1/analysis/pending", json={"onebox_location_id": 674})
+    assert res2.status_code == 200, res2.text

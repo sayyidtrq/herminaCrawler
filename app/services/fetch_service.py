@@ -14,21 +14,16 @@ from app.integrations.review_source_client import (
     ReviewSourceError,
     UnsupportedReviewClient,
 )
-from app.integrations.selenium_google_maps_client import (
-    SeleniumGoogleMapsReviewClient,
-)
-from app.services.entitlement_service import EntitlementService
 from app.services.fetch_log_service import FetchLogService
 from app.services.location_service import LocationService
 from app.services.review_service import ReviewService
-from app.services.worklist_sync_service import WorklistSyncError, WorklistSyncService
+from app.services.worklist_sync_service import WorklistSyncError, WorklistSyncService, is_onebox_managed
 from app.utils.date_parser import (
     is_within_date_range,
     parse_datetime,
     parse_relative_datetime,
 )
-from app.utils.hashing import generate_review_hash, generate_selenium_review_hash
-
+from app.utils.hashing import generate_review_hash
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +58,6 @@ class FetchService:
             return MockReviewClient()
         if self.settings.review_source_mode == "google_places":
             return GooglePlacesClient(self.settings)
-        if self.settings.review_source_mode == "selenium":
-            return SeleniumGoogleMapsReviewClient(self.settings)
         if self.settings.review_source_mode == "google_business_profile":
             return UnsupportedReviewClient(
                 "Google Business Profile integration is not implemented yet."
@@ -79,14 +72,9 @@ class FetchService:
         delays = [5, 15, 30]
         for attempt in range(attempts):
             try:
-                limit = self.settings.fetch_limit_per_location
-                if self.settings.review_source_mode == "selenium":
-                    limit = location.target_review_count
-                    if self.company_id is not None:
-                        limit = EntitlementService(
-                            self.company_id
-                        ).clamp_review_target(limit)
-                return client.fetch_reviews(location, limit=limit)
+                return client.fetch_reviews(
+                    location, limit=self.settings.fetch_limit_per_location
+                )
             except ReviewSourceError as exc:
                 if not exc.retriable or attempt == attempts - 1:
                     raise
@@ -133,6 +121,8 @@ class FetchService:
             ).strip(),
             "reviewer_profile_url": raw_review.get("reviewer_profile_url"),
             "reviewer_photo_url": raw_review.get("reviewer_photo_url"),
+            "review_url": raw_review.get("review_url"),
+            "review_photo_urls": raw_review.get("review_photo_urls") or [],
             "reviewer_local_guide_level": raw_review.get(
                 "reviewer_local_guide_level"
             ),
@@ -140,6 +130,9 @@ class FetchService:
             "rating": rating,
             "review_text": str(raw_review.get("review_text") or ""),
             "review_time": self._resolve_review_time(raw_review),
+            "review_time_precision": raw_review.get("review_time_precision"),
+            "is_edited": bool(raw_review.get("is_edited")),
+            "edited_at": parse_datetime(raw_review.get("edited_at")),
             "review_relative_time": raw_review.get("review_relative_time"),
             "review_language": str(
                 raw_review.get("review_language")
@@ -155,10 +148,7 @@ class FetchService:
             "scraped_at": parse_datetime(raw_review.get("scraped_at")),
             "raw_payload": raw_payload,
         }
-        if normalized["source"] == "selenium_google_maps":
-            normalized["review_hash"] = generate_selenium_review_hash(normalized)
-        else:
-            normalized["review_hash"] = generate_review_hash(normalized)
+        normalized["review_hash"] = generate_review_hash(normalized)
         return normalized
 
     def _refresh_worklist(self) -> dict:
@@ -191,11 +181,11 @@ class FetchService:
 
         result = self._empty_result(location)
         result["worklist_sync"] = worklist_result
-        if getattr(location, 'onebox_connection_id', None) is not None and not location.crawl_enabled:
+        if is_onebox_managed(location) and not location.crawl_enabled:
             result["status"] = "skipped_disabled"
             result["error_message"] = "Location is disabled by the OneBox worklist."
             return result
-        if getattr(location, 'onebox_connection_id', None) is not None and not location.ingest_reviews:
+        if is_onebox_managed(location) and not location.ingest_reviews:
             result["status"] = "skipped_ingest_disabled"
             result["error_message"] = "Review ingestion is disabled by the OneBox worklist."
             return result

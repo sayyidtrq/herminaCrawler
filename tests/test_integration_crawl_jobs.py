@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -8,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import get_settings
 from app.db.base import Base
-from app.db.models import ApiClient, Company, CrawlBatch, CrawlJob, Location
+from app.db.models import ApiClient, Company, Competitor, CrawlBatch, CrawlJob, Location
 from app.services.crawl_queue import CrawlQueue
 from app.services.crawl_worker import CrawlWorker
 from apps.api.app_api.routers.integration_crawl_jobs import (
@@ -54,7 +56,7 @@ def session_factory():
                     company_id=company_a.id,
                     hospital_name="Hospital A",
                     branch_name="Branch A",
-                    source="selenium_google_maps",
+                    source="apify_google_maps",
                     external_place_id="place-a",
                     onebox_location_id=101,
                     target_review_count=2,
@@ -66,7 +68,7 @@ def session_factory():
                     company_id=company_a.id,
                     hospital_name="Hospital A",
                     branch_name="Branch A2",
-                    source="selenium_google_maps",
+                    source="apify_google_maps",
                     external_place_id="place-a2",
                     onebox_location_id=102,
                     target_review_count=2,
@@ -78,7 +80,7 @@ def session_factory():
                     company_id=company_b.id,
                     hospital_name="Hospital B",
                     branch_name="Branch B",
-                    source="selenium_google_maps",
+                    source="apify_google_maps",
                     external_place_id="place-b",
                     onebox_location_id=201,
                     target_review_count=2,
@@ -212,17 +214,152 @@ def test_new_window_payload_normalizes_options(session_factory):
     assert response.status_code == 202
     data = response.json()["data"]
     job = data["jobs"][0]
-    assert job["target_review_count"] == 5
-    assert job["max_reviews_to_collect"] == 5
+    assert job["target_review_count"] == 100_000
+    assert job["max_reviews_to_collect"] == 100_000
     assert job["scan_limit"] == 40
     assert job["crawl_mode"] == "custom_range"
-    assert data["limits"] == {"max_reviews_to_collect": 5, "scan_limit": 40}
+    assert data["limits"] == {"max_reviews_to_collect": 100_000, "scan_limit": 40}
 
     with session_factory() as session:
         stored = session.scalar(select(CrawlJob))
-        assert stored.target_review_count == 5
+        assert stored.target_review_count == 100_000
+        assert stored.result_json["request"]["coverage"] == "date_window"
+        assert stored.result_json["request"]["budget"] is None
+        assert stored.result_json["request"]["max_reviews_to_collect"] is None
         assert stored.result_json["request"]["crawl_mode"] == "custom_range"
         assert stored.result_json["request"]["scan_limit"] == 40
+
+
+def test_budget_contract_bounds(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+
+    accepted = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-09-17:budget-5000"},
+        json={
+            "targets": [
+                {
+                    "onebox_location_id": 101,
+                    "coverage": "delta",
+                    "budget": 5000,
+                }
+            ]
+        },
+    )
+    rejected = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-09-17:budget-100001"},
+        json={
+            "targets": [
+                {
+                    "onebox_location_id": 102,
+                    "coverage": "delta",
+                    "budget": 100001,
+                }
+            ]
+        },
+    )
+
+    assert accepted.status_code == 202
+    assert rejected.status_code == 400
+    with session_factory() as session:
+        job = session.scalar(select(CrawlJob))
+        assert job.target_review_count == 5000
+        assert job.result_json["request"]["coverage"] == "delta"
+        assert job.result_json["request"]["budget"] == 5000
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {
+            "onebox_location_id": 101,
+            "coverage": "full_backfill",
+            "date_from": "2026-09-01T00:00:00Z",
+        },
+        {
+            "onebox_location_id": 101,
+            "coverage": "date_window",
+            "date_from": "2026-09-01T00:00:00Z",
+            "budget": 5000,
+        },
+    ],
+)
+def test_invalid_coverage_combinations_are_rejected(session_factory, target):
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-09-17:invalid-combination"},
+        json={"targets": [target]},
+    )
+
+    assert response.status_code == 400
+
+
+def test_date_window_requires_target_or_batch_dates(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-09-17:missing-window"},
+        json={
+            "targets": [
+                {"onebox_location_id": 101, "coverage": "date_window"}
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_PARAMETER"
+
+
+def test_legacy_delta_maps_target_count_to_budget(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-09-17:legacy-delta"},
+        json={
+            "targets": [
+                {
+                    "onebox_location_id": 101,
+                    "crawl_mode": "regular_delta",
+                    "target_review_count": 300,
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 202
+    with session_factory() as session:
+        request = session.scalar(select(CrawlJob)).result_json["request"]
+        assert request["coverage"] == "delta"
+        assert request["budget"] == 300
+        assert request["crawl_mode"] == "regular_delta"
+
+
+def test_legacy_custom_range_drops_target_count(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-09-17:legacy-window"},
+        json={
+            "targets": [
+                {
+                    "onebox_location_id": 101,
+                    "crawl_mode": "custom_range",
+                    "target_review_count": 300,
+                    "date_from": "2026-09-01T00:00:00Z",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 202
+    with session_factory() as session:
+        job = session.scalar(select(CrawlJob))
+        request = job.result_json["request"]
+        assert job.target_review_count == 100_000
+        assert request["coverage"] == "date_window"
+        assert request["budget"] is None
 
 
 def test_same_target_window_returns_active_batch(session_factory):
@@ -264,6 +401,9 @@ def test_worker_claims_and_completes_job(session_factory):
             self,
             location_id,
             target,
+            coverage=None,
+            budget=None,
+            review_quota_remaining=None,
             date_from=None,
             date_to=None,
             on_progress=None,
@@ -350,6 +490,9 @@ def test_worker_marks_partial_success_without_failed_retry(session_factory):
             self,
             location_id,
             target,
+            coverage=None,
+            budget=None,
+            review_quota_remaining=None,
             date_from=None,
             date_to=None,
             on_progress=None,
@@ -401,3 +544,499 @@ def test_worker_marks_partial_success_without_failed_retry(session_factory):
     assert "jobs" not in latest
     assert latest["stop_reason"] == "sort_unavailable"
     assert latest["stop_reasons"] == {"sort_unavailable": 1}
+
+
+def test_worker_does_not_retry_permanent_source_failure(session_factory):
+    class AuthenticationRequiredFetchService:
+        def fetch_location(
+            self,
+            location_id,
+            target,
+            coverage=None,
+            budget=None,
+            review_quota_remaining=None,
+            date_from=None,
+            date_to=None,
+            on_progress=None,
+            sort_by="newest",
+            scan_limit=None,
+            time_limit_seconds=0,
+        ):
+            return {
+                "status": "failed",
+                "location_id": location_id,
+                "target_review_count": target,
+                "metadata": {
+                    "failure_code": "GOOGLE_AUTH_REQUIRED",
+                    "retriable": False,
+                },
+                "error_message": "Google Maps requires a manual sign-in.",
+                "total_fetched": 0,
+                "total_inserted": 0,
+                "total_duplicate": 0,
+                "total_skipped_out_of_range": 0,
+                "total_failed": 0,
+            }
+
+    queue = CrawlQueue(session_factory=session_factory)
+    worker = CrawlWorker(
+        session_factory=session_factory,
+        fetch_service_factory=lambda _company_id: AuthenticationRequiredFetchService(),
+    )
+    queued, _ = queue.enqueue(
+        company_id=1,
+        client_id=1,
+        idempotency_key="169:2026-09-11:google-auth-required",
+        onebox_location_ids=[101],
+        slot="manual",
+    )
+
+    completed = worker.execute_next(worker_id="test-worker")
+
+    assert completed["batch_id"] == queued["batch_id"]
+    assert completed["status"] == "failed"
+    assert completed["jobs"][0]["status"] == "failed"
+    assert completed["jobs"][0]["attempts"] == 1
+    assert completed["jobs"][0]["error"]["code"] == "GOOGLE_AUTH_REQUIRED"
+
+
+def test_estimate_is_not_shadowed_by_batch_route_and_reports_probe(session_factory):
+    with session_factory() as session:
+        location = session.scalar(
+            select(Location).where(Location.onebox_location_id == 101)
+        )
+        location.last_probed_review_count = 1100
+        location.last_probed_at = datetime(2026, 9, 16, tzinfo=timezone.utc)
+        location.last_expected_review_count = 1050
+        location.last_successful_crawl_at = datetime(
+            2026, 9, 1, tzinfo=timezone.utc
+        )
+        session.commit()
+    client = make_client(session_factory, principal(1, 1))
+
+    response = client.get(
+        "/api/integration/v1/crawl-jobs/estimate",
+        params={"onebox_location_id": 101},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["expected_review_count"] == 1100
+    assert data["expected_source"] == "probe"
+    assert data["stored_review_count"] == 0
+    assert data["coverage"]["last_expected_review_count"] == 1050
+
+
+def test_estimate_falls_back_to_the_last_crawl_snapshot(session_factory):
+    with session_factory() as session:
+        location = session.scalar(
+            select(Location).where(Location.onebox_location_id == 101)
+        )
+        location.last_expected_review_count = 1050
+        location.last_successful_crawl_at = datetime(
+            2026, 9, 1, tzinfo=timezone.utc
+        )
+        session.commit()
+    client = make_client(session_factory, principal(1, 1))
+
+    data = client.get(
+        "/api/integration/v1/crawl-jobs/estimate",
+        params={"onebox_location_id": 101},
+    ).json()["data"]
+
+    assert data["expected_review_count"] == 1050
+    assert data["expected_source"] == "snapshot"
+
+
+def test_estimate_is_tenant_scoped(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+
+    response = client.get(
+        "/api/integration/v1/crawl-jobs/estimate",
+        params={"onebox_location_id": 201},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "TARGET_NOT_FOUND"
+
+
+class _FakePlaces:
+    def __init__(self, count=None, error=None):
+        self.count = count
+        self.error = error
+        self.calls = 0
+
+    def review_count(self, place_id):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        return self.count
+
+
+def test_probe_reports_unchanged_count_without_touching_apify(
+    session_factory, monkeypatch
+):
+    from app.integrations import apify_client
+    from app.services import review_count_probe
+
+    places = _FakePlaces(count=1100)
+    monkeypatch.setattr(
+        review_count_probe.ReviewCountProbe,
+        "places_client",
+        property(lambda self: places),
+    )
+
+    def _no_apify(*args, **kwargs):
+        raise AssertionError("the probe must never construct an Apify client")
+
+    monkeypatch.setattr(apify_client.ApifyClient, "__init__", _no_apify)
+    client = make_client(session_factory, principal(1, 1))
+    url = "/api/integration/v1/crawl-jobs/probe"
+
+    first = client.get(url, params={"onebox_location_id": 101}).json()["data"]
+    second = client.get(url, params={"onebox_location_id": 101}).json()["data"]
+
+    assert first["changed"] is True
+    assert second["changed"] is False
+    assert second["previous_review_count"] == 1100
+    assert places.calls == 2
+
+
+def test_probe_fails_open(session_factory, monkeypatch):
+    from app.integrations.review_source_client import ReviewSourceError
+    from app.services import review_count_probe
+
+    places = _FakePlaces(error=ReviewSourceError("key missing"))
+    monkeypatch.setattr(
+        review_count_probe.ReviewCountProbe,
+        "places_client",
+        property(lambda self: places),
+    )
+    client = make_client(session_factory, principal(1, 1))
+
+    response = client.get(
+        "/api/integration/v1/crawl-jobs/probe", params={"onebox_location_id": 101}
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["changed"] is True
+    assert data["error"] == "PROBE_UNAVAILABLE"
+
+
+def test_review_quota_is_accepted_and_not_part_of_the_fingerprint(session_factory):
+    client = make_client(session_factory, principal(1, 1))
+    body = {
+        "targets": [{"onebox_location_id": 101, "coverage": "delta"}],
+        "review_quota_remaining": 40,
+    }
+    headers = {"Idempotency-Key": "169:2026-09-17:quota"}
+
+    first = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body)
+    body["review_quota_remaining"] = 39
+    retry = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body)
+
+    assert first.status_code == 202
+    assert retry.status_code == 202
+    assert retry.json()["data"]["batch_id"] == first.json()["data"]["batch_id"]
+    with session_factory() as session:
+        job = session.scalar(select(CrawlJob))
+        assert job.result_json["request"]["review_quota_remaining"] == 40
+
+
+def test_competitor_enqueue_by_onebox_target_id(session_factory):
+    with session_factory() as session:
+        comp = Competitor(
+            company_id=1,
+            name="Competitor 1",
+            source="apify_google_maps",
+            external_place_id="place-comp-501",
+            onebox_target_id=501,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add(comp)
+        session.commit()
+        comp_id = comp.id
+
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:competitor-target-id"},
+        json={
+            "slot": "morning",
+            "targets": [
+                {
+                    "kind": "competitor",
+                    "onebox_target_id": 501,
+                    "target_review_count": 5,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()["data"]
+    assert len(data["jobs"]) == 1
+    job = data["jobs"][0]
+    assert job["kind"] == "competitor"
+    assert job["onebox_target_id"] == 501
+    assert job["onebox_location_id"] is None
+    assert job["competitor_id"] == comp_id
+
+
+def test_competitor_enqueue_target_id_wins_when_place_id_differs(session_factory):
+    with session_factory() as session:
+        comp_target = Competitor(
+            company_id=1,
+            name="Competitor Target",
+            source="apify_google_maps",
+            external_place_id="place-real",
+            onebox_target_id=502,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        comp_other = Competitor(
+            company_id=1,
+            name="Competitor Other",
+            source="apify_google_maps",
+            external_place_id="place-differs",
+            onebox_target_id=503,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add_all([comp_target, comp_other])
+        session.commit()
+        target_comp_id = comp_target.id
+
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:competitor-precedence"},
+        json={
+            "slot": "morning",
+            "targets": [
+                {
+                    "kind": "competitor",
+                    "onebox_target_id": 502,
+                    "external_place_id": "place-differs",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()["data"]
+    assert len(data["jobs"]) == 1
+    job = data["jobs"][0]
+    assert job["kind"] == "competitor"
+    assert job["onebox_target_id"] == 502
+    assert job["competitor_id"] == target_comp_id
+
+
+def test_competitor_enqueue_unknown_or_cross_tenant_target_id_returns_404(
+    session_factory,
+):
+    with session_factory() as session:
+        comp_b = Competitor(
+            company_id=2,
+            name="Tenant B Competitor",
+            source="apify_google_maps",
+            external_place_id="place-tenant-b",
+            onebox_target_id=701,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add(comp_b)
+        session.commit()
+
+    client_a = make_client(session_factory, principal(1, 1))
+
+    res_unknown = client_a.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:unknown-comp-target"},
+        json={"targets": [{"kind": "competitor", "onebox_target_id": 999999}]},
+    )
+    assert res_unknown.status_code == 404
+    assert res_unknown.json()["error"]["code"] == "TARGET_NOT_FOUND"
+
+    res_cross = client_a.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:cross-tenant-comp-target"},
+        json={"targets": [{"kind": "competitor", "onebox_target_id": 701}]},
+    )
+    assert res_cross.status_code == 404
+    assert res_cross.json()["error"]["code"] == "TARGET_NOT_FOUND"
+
+
+def test_legacy_competitor_by_external_place_id_and_pinned_fingerprint(
+    session_factory,
+):
+    with session_factory() as session:
+        comp = Competitor(
+            company_id=1,
+            name="Competitor Legacy",
+            source="apify_google_maps",
+            external_place_id="place-legacy-1",
+            onebox_target_id=None,
+            target_review_count=10,
+            crawl_enabled=True,
+            is_active=True,
+        )
+        session.add(comp)
+        session.commit()
+        comp_id = comp.id
+
+    client = make_client(session_factory, principal(1, 1))
+    response = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:legacy-comp-place"},
+        json={
+            "slot": "manual",
+            "targets": [
+                {
+                    "kind": "competitor",
+                    "external_place_id": "place-legacy-1",
+                    "target_review_count": 10,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()["data"]
+    assert len(data["jobs"]) == 1
+    job = data["jobs"][0]
+    assert job["kind"] == "competitor"
+    assert job["competitor_id"] == comp_id
+    assert job["onebox_target_id"] is None
+
+    legacy_spec = {
+        "place-legacy-1": {
+            "target_review_count": 10,
+            "date_from": None,
+            "date_to": None,
+            "sort_by": "newest",
+            "coverage": "delta",
+            "budget": 10,
+            "crawl_mode": "regular_delta",
+        }
+    }
+    fp_manual = CrawlQueue.request_fingerprint(
+        slot="manual",
+        onebox_location_ids=[],
+        competitor_targets=legacy_spec,
+    )
+    assert fp_manual == "9e3e09ed6516ce0f41332526f14198e34596408bc67927fd97b3ba26dc442da1"
+
+    fp_none = CrawlQueue.request_fingerprint(
+        slot=None,
+        onebox_location_ids=[],
+        competitor_targets=legacy_spec,
+    )
+    assert fp_none == "fd8f98b7f3f6c8c7ed8e417d07771a04b34331d649cfa9cabf27535b3b9dd247"
+
+
+def test_competitor_and_location_validation(session_factory):
+    import pydantic
+    from apps.api.app_api.integration_crawl_schemas import CrawlTargetRequest
+
+    with pytest.raises(pydantic.ValidationError):
+        CrawlTargetRequest(kind="competitor")
+
+    with pytest.raises(pydantic.ValidationError):
+        CrawlTargetRequest(kind="competitor", external_place_id="   ")
+
+    c1 = CrawlTargetRequest(kind="competitor", onebox_target_id=123)
+    assert c1.onebox_target_id == 123
+
+    c2 = CrawlTargetRequest(kind="competitor", external_place_id="place-abc")
+    assert c2.external_place_id == "place-abc"
+
+    with pytest.raises(pydantic.ValidationError):
+        CrawlTargetRequest(kind="location")
+
+    loc = CrawlTargetRequest(kind="location", onebox_location_id=101)
+    assert loc.onebox_location_id == 101
+
+    client = make_client(session_factory, principal(1, 1))
+    res_comp = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:val-comp"},
+        json={"targets": [{"kind": "competitor"}]},
+    )
+    # The integration prefix remaps FastAPI 422 validation errors to 400 INVALID_PARAMETER
+    assert res_comp.status_code == 400
+    assert res_comp.json()["error"]["code"] == "INVALID_PARAMETER"
+
+    res_loc = client.post(
+        "/api/integration/v1/crawl-jobs",
+        headers={"Idempotency-Key": "169:2026-10-01:val-loc"},
+        json={"targets": [{"kind": "location"}]},
+    )
+    assert res_loc.status_code == 400
+    assert res_loc.json()["error"]["code"] == "INVALID_PARAMETER"
+
+
+
+
+def test_mixed_batch_by_target_id_is_idempotent_and_conflicts_on_other_target(
+    session_factory,
+):
+    with session_factory() as session:
+        session.add_all(
+            [
+                Competitor(
+                    company_id=1,
+                    name="Competitor A",
+                    source="apify_google_maps",
+                    external_place_id="place-mixed-a",
+                    onebox_target_id=601,
+                    is_active=True,
+                ),
+                Competitor(
+                    company_id=1,
+                    name="Competitor B",
+                    source="apify_google_maps",
+                    external_place_id="place-mixed-b",
+                    onebox_target_id=602,
+                    is_active=True,
+                ),
+            ]
+        )
+        session.commit()
+
+    client = make_client(session_factory, principal(1, 1))
+    headers = {"Idempotency-Key": "169:2026-10-01:mixed-target"}
+
+    def body(target_id: int) -> dict:
+        return {
+            "slot": "morning",
+            "targets": [
+                {"kind": "location", "onebox_location_id": 101},
+                {"kind": "competitor", "onebox_target_id": target_id},
+            ],
+        }
+
+    first = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body(601))
+    replay = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body(601))
+    other = client.post("/api/integration/v1/crawl-jobs", headers=headers, json=body(602))
+
+    assert first.status_code == 202
+    jobs = first.json()["data"]["jobs"]
+    assert {job["kind"] for job in jobs} == {"location", "competitor"}
+    assert [job["onebox_target_id"] for job in jobs if job["kind"] == "competitor"] == [601]
+    assert replay.status_code == 202
+    assert replay.json()["data"]["batch_id"] == first.json()["data"]["batch_id"]
+    assert replay.json()["data"]["reused_existing_job"] is True
+    assert other.status_code == 409
+    assert other.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+    with session_factory() as session:
+        batches = list(session.scalars(select(CrawlBatch)))
+        assert len(batches) == 1
+        # Regresi: kunci idempotensi klien tidak boleh tertimpa kunci spec kompetitor.
+        assert batches[0].idempotency_key == "169:2026-10-01:mixed-target"

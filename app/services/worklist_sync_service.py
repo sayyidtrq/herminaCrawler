@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import Settings, get_settings
+from app.config import DEFAULT_REVIEW_LIMIT, MAX_REVIEW_LIMIT, Settings, get_settings
 from app.db.models import Company, Competitor, Location, WorklistSyncState
 from app.db.session import get_session_factory
 from app.integrations.onebox_worklist_client import (
@@ -19,6 +19,21 @@ from app.integrations.onebox_worklist_client import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def onebox_managed_clause(model):
+    return or_(
+        model.onebox_connection_id.is_not(None),
+        model.onebox_location_id.is_not(None),
+        model.onebox_target_id.is_not(None),
+    )
+
+
+def is_onebox_managed(row) -> bool:
+    return any(
+        getattr(row, field, None) is not None
+        for field in ("onebox_connection_id", "onebox_location_id", "onebox_target_id")
+    )
 
 
 class WorklistSyncError(RuntimeError):
@@ -107,16 +122,19 @@ def _optional_int(value: Any, field: str) -> int | None:
 
 def _target(value: Any) -> int:
     if value is None or value == "":
-        return 100
+        return DEFAULT_REVIEW_LIMIT
     try:
         target = int(value)
     except (TypeError, ValueError) as exc:
         raise WorklistSyncError(
             "Worklist field target_review_count must be an integer."
         ) from exc
-    if not 1 <= target <= 300:
+    # Batas lama 300 akan menolak cabang yang disimpan OneBox dengan batas
+    # bawaan baru (5.000) dan menggagalkan seluruh sinkronisasi worklist.
+    if not 1 <= target <= MAX_REVIEW_LIMIT:
         raise WorklistSyncError(
-            "Worklist field target_review_count must be between 1 and 300."
+            "Worklist field target_review_count must be between 1 and "
+            f"{MAX_REVIEW_LIMIT}."
         )
     return target
 
@@ -191,6 +209,7 @@ class WorklistSyncService:
 
         items: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
+        seen_target_ids: set[int] = set()
         for index, raw in enumerate(payload["data"]):
             if not isinstance(raw, dict):
                 raise WorklistSyncError(f"Worklist item {index} must be an object.")
@@ -208,6 +227,11 @@ class WorklistSyncService:
             if key in seen:
                 raise WorklistSyncError(f"Duplicate worklist item: {kind}/{external}.")
             seen.add(key)
+            onebox_target_id = _optional_int(raw.get("onebox_target_id"), "onebox_target_id")
+            if onebox_target_id is not None:
+                if onebox_target_id in seen_target_ids:
+                    raise WorklistSyncError(f"Duplicate onebox_target_id: {onebox_target_id}.")
+                seen_target_ids.add(onebox_target_id)
             default_crawl = kind == "location"
             default_ingest = kind == "location"
             item = {
@@ -217,12 +241,18 @@ class WorklistSyncService:
                     raw.get("onebox_connection_id", raw.get("connection_id")),
                     "onebox_connection_id",
                 ),
+                "onebox_target_id": onebox_target_id,
                 "onebox_location_id": _optional_int(
                     raw.get("onebox_location_id", raw.get("location_id")),
                     "onebox_location_id",
                 ),
-                "hospital_name": str(
-                    raw.get("hospital_name") or raw.get("branch_name") or "Hospital"
+                "organization_name": str(
+                    raw.get("organization_name")
+                    or raw.get("company_name")
+                    or raw.get("brand_name")
+                    or raw.get("hospital_name")
+                    or raw.get("branch_name")
+                    or "Company"
                 ).strip(),
                 "branch_name": str(
                     raw.get("branch_name") or raw.get("name") or "Unnamed location"
@@ -277,7 +307,7 @@ class WorklistSyncService:
                             company_id=company_id,
                             source="onebox",
                             external_place_id=item["external_place_id"],
-                            hospital_name=item["hospital_name"],
+                            organization_name=item["organization_name"],
                             branch_name=item["branch_name"],
                         )
                         session.add(entity)
@@ -297,7 +327,7 @@ class WorklistSyncService:
             managed_locations = session.scalars(
                 select(Location).where(
                     Location.company_id == company_id,
-                    Location.onebox_connection_id.is_not(None),
+                    onebox_managed_clause(Location),
                 )
             ).all()
             for entity in managed_locations:
@@ -310,7 +340,7 @@ class WorklistSyncService:
             managed_competitors = session.scalars(
                 select(Competitor).where(
                     Competitor.company_id == company_id,
-                    Competitor.onebox_connection_id.is_not(None),
+                    onebox_managed_clause(Competitor),
                 )
             ).all()
             for entity in managed_competitors:
@@ -350,18 +380,7 @@ class WorklistSyncService:
             .where(Location.company_id == company_id, Location.external_place_id == external)
             .order_by(Location.id)
         )
-        if entity is not None:
-            return entity
-        conflict = session.scalar(
-            select(Location).where(
-                Location.source == "onebox", Location.external_place_id == external
-            )
-        )
-        if conflict is not None and conflict.company_id != company_id:
-            raise WorklistSyncError(
-                "OneBox external_place_id is already owned by another company."
-            )
-        return None
+        return entity
 
     @staticmethod
     def _find_competitor(session: Session, company_id: int, external: str) -> Competitor | None:
@@ -378,13 +397,14 @@ class WorklistSyncService:
     def _apply_location(entity: Location, item: dict[str, Any], now: datetime) -> None:
         entity.source = "onebox"
         entity.external_place_id = item["external_place_id"]
-        entity.hospital_name = item["hospital_name"]
+        entity.organization_name = item["organization_name"]
         entity.branch_name = item["branch_name"]
         entity.city = item["city"]
         entity.google_maps_url = item["google_maps_url"]
         entity.google_reviews_url = item["google_reviews_url"]
         entity.target_review_count = item["target_review_count"]
         entity.onebox_connection_id = item["onebox_connection_id"]
+        entity.onebox_target_id = item["onebox_target_id"]
         entity.onebox_location_id = item["onebox_location_id"]
         entity.crawl_enabled = item["crawl_enabled"]
         entity.ingest_reviews = item["ingest_reviews"]
@@ -408,6 +428,7 @@ class WorklistSyncService:
         entity.google_reviews_url = item["google_reviews_url"]
         entity.target_review_count = item["target_review_count"]
         entity.onebox_connection_id = item["onebox_connection_id"]
+        entity.onebox_target_id = item["onebox_target_id"]
         entity.onebox_location_id = item["onebox_location_id"]
         entity.crawl_enabled = item["crawl_enabled"]
         entity.ingest_reviews = item["ingest_reviews"]
@@ -459,5 +480,3 @@ class WorklistSyncService:
             site_id,
             error,
         )
-
-

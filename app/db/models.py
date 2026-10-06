@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import ClassVar
 
 from sqlalchemy import (
     Boolean,
@@ -19,7 +20,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.db.base import Base
 
@@ -250,11 +251,34 @@ class CrawlJob(Base):
     batch: Mapped[CrawlBatch] = relationship(back_populates="jobs")
 
 
-class Location(Base):
+class _CrawlCoverageColumns:
+    """Apa yang benar-benar sudah di-crawl untuk satu target (spec §4.5).
+
+    Kursor delta dibaca dari sini, bukan dari apa yang sudah diimpor OneBox,
+    supaya impor yang tertinggal tidak memicu crawl ulang.
+    """
+
+    newest_crawled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    newest_crawled_precision: Mapped[str | None] = mapped_column(String(10))
+    oldest_crawled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    backfill_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    last_successful_crawl_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    last_expected_review_count: Mapped[int | None] = mapped_column(Integer)
+    last_probed_review_count: Mapped[int | None] = mapped_column(Integer)
+    last_probed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_sweep_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Location(_CrawlCoverageColumns, Base):
+    kind: ClassVar[str] = "location"
     __tablename__ = "locations"
     __table_args__ = (
         UniqueConstraint(
-            "source", "external_place_id", name="uq_locations_source_place"
+            "company_id", "source", "external_place_id", name="uq_locations_company_source_place"
         ),
         Index("idx_locations_source_place", "source", "external_place_id"),
         Index("idx_locations_active", "is_active"),
@@ -264,7 +288,10 @@ class Location(Base):
     company_id: Mapped[int] = mapped_column(
         ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
-    hospital_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    organization_name: Mapped[str] = mapped_column(
+        "hospital_name", String(150), nullable=False
+    )
+    hospital_name = synonym("organization_name")
     branch_name: Mapped[str] = mapped_column(String(150), nullable=False)
     city: Mapped[str | None] = mapped_column(String(100))
     address: Mapped[str | None] = mapped_column(Text)
@@ -275,9 +302,12 @@ class Location(Base):
     google_maps_url: Mapped[str | None] = mapped_column(Text)
     google_reviews_url: Mapped[str | None] = mapped_column(Text)
     target_review_count: Mapped[int] = mapped_column(
-        Integer, default=100, nullable=False
+        # Keep in sync with settings.crawl_default_review_limit.
+        Integer, default=5000, nullable=False
     )
+    apify_resume_checkpoint: Mapped[dict | None] = mapped_column(JsonType)
     onebox_connection_id: Mapped[int | None] = mapped_column(Integer)
+    onebox_target_id: Mapped[int | None] = mapped_column(Integer)
     onebox_location_id: Mapped[int | None] = mapped_column(Integer)
     crawl_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     ingest_reviews: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -334,11 +364,19 @@ class _GoogleReviewColumns:
     reviewer_name: Mapped[str | None] = mapped_column(String(255))
     reviewer_profile_url: Mapped[str | None] = mapped_column(Text)
     reviewer_photo_url: Mapped[str | None] = mapped_column(Text)
+    review_url: Mapped[str | None] = mapped_column(Text)
+    review_photo_urls: Mapped[list] = mapped_column(JsonType, default=list, server_default='[]', nullable=False)
     reviewer_local_guide_level: Mapped[str | None] = mapped_column(String(100))
     reviewer_total_reviews: Mapped[int | None] = mapped_column(Integer)
     rating: Mapped[int | None] = mapped_column(Integer)
     review_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
     review_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # day / week / month / year / unknown — lihat date_parser.PRECISION_ORDER.
+    review_time_precision: Mapped[str | None] = mapped_column(String(10))
+    is_edited: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_relative_time: Mapped[str | None] = mapped_column(String(100))
     review_language: Mapped[str | None] = mapped_column(String(20))
     language: Mapped[str | None] = mapped_column(String(20))
@@ -349,7 +387,7 @@ class _GoogleReviewColumns:
     )
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw_payload: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
-    review_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    review_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -377,6 +415,7 @@ class Review(_GoogleReviewColumns, Base):
         Index("idx_reviews_rating", "rating"),
         Index("idx_reviews_review_hash", "review_hash"),
         Index("idx_reviews_source_place", "source", "external_place_id"),
+        UniqueConstraint("company_id", "review_hash", name="uq_reviews_company_hash"),
         # Serves the integration keyset scan: tenant, then the exact ORDER BY.
         Index("idx_reviews_company_sync_id", "company_id", "sync_updated_at", "id"),
     )
@@ -429,9 +468,10 @@ class ReviewAnalysis(Base):
     is_potential_viral: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
-    is_patient_safety_issue: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
+    is_safety_issue: Mapped[bool] = mapped_column(
+        "is_patient_safety_issue", Boolean, default=False, nullable=False
     )
+    is_patient_safety_issue = synonym("is_safety_issue")
     model_name: Mapped[str | None] = mapped_column(String(100))
     prompt_version: Mapped[str | None] = mapped_column(String(50))
     raw_response: Mapped[dict] = mapped_column(JsonType, default=dict, nullable=False)
@@ -476,7 +516,8 @@ class FetchLog(Base):
     location: Mapped[Location] = relationship(back_populates="fetch_logs")
 
 
-class Competitor(Base):
+class Competitor(_CrawlCoverageColumns, Base):
+    kind: ClassVar[str] = "competitor"
     __tablename__ = "competitors"
     __table_args__ = (
         UniqueConstraint(
@@ -503,9 +544,12 @@ class Competitor(Base):
     google_maps_url: Mapped[str | None] = mapped_column(Text)
     google_reviews_url: Mapped[str | None] = mapped_column(Text)
     target_review_count: Mapped[int] = mapped_column(
-        Integer, default=100, nullable=False
+        # Keep in sync with settings.crawl_default_review_limit.
+        Integer, default=5000, nullable=False
     )
+    apify_resume_checkpoint: Mapped[dict | None] = mapped_column(JsonType)
     onebox_connection_id: Mapped[int | None] = mapped_column(Integer)
+    onebox_target_id: Mapped[int | None] = mapped_column(Integer)
     onebox_location_id: Mapped[int | None] = mapped_column(Integer)
     crawl_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     ingest_reviews: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -538,6 +582,9 @@ class CompetitorReview(_GoogleReviewColumns, Base):
         Index("idx_comp_reviews_competitor_id", "competitor_id"),
         Index("idx_comp_reviews_review_time", "review_time"),
         Index("idx_comp_reviews_review_hash", "review_hash"),
+        UniqueConstraint(
+            "competitor_id", "review_hash", name="uq_comp_reviews_competitor_hash"
+        ),
     )
 
     competitor_id: Mapped[int] = mapped_column(
@@ -545,3 +592,32 @@ class CompetitorReview(_GoogleReviewColumns, Base):
     )
 
     competitor: Mapped[Competitor] = relationship(back_populates="reviews")
+
+
+class CrawlWindowLog(Base):
+    """Satu baris per job date_window: apakah rentangnya sudah lengkap."""
+
+    __tablename__ = "crawl_window_log"
+    __table_args__ = (
+        Index("idx_crawl_window_log_location", "location_id", "finished_at"),
+        Index("idx_crawl_window_log_competitor", "competitor_id", "finished_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("locations.id", ondelete="CASCADE")
+    )
+    competitor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("competitors.id", ondelete="CASCADE")
+    )
+    crawl_job_id: Mapped[int | None] = mapped_column(Integer)
+    date_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    date_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completeness: Mapped[str] = mapped_column(String(20), nullable=False)
+    stop_reason: Mapped[str | None] = mapped_column(String(50))
+    finished_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
+from app.config import get_settings
 from app.db.session import get_session_factory
 from app.services.crawl_queue import CrawlQueue, CrawlQueueError
 from app.services.integration_review_service import IntegrationRequestError
+from app.services.review_count_probe import ReviewCountProbe, ReviewTargetNotFound
 from apps.api.app_api.integration_crawl_schemas import (
     CrawlBatchCreateRequest,
     CrawlBatchListResponse,
@@ -19,6 +22,14 @@ from apps.api.app_api.integration_schemas import API_VERSION, IntegrationErrorRe
 from apps.api.app_api.service_auth import ServicePrincipal, require_service_principal
 
 router = APIRouter(prefix="/integration/v1/crawl-jobs", tags=["integration-crawl"])
+logger = logging.getLogger(__name__)
+
+_COVERAGE_TO_CRAWL_MODE = {
+    "full_backfill": "initial_backfill",
+    "date_window": "custom_range",
+    "delta": "regular_delta",
+}
+_CRAWL_MODE_TO_COVERAGE = {value: key for key, value in _COVERAGE_TO_CRAWL_MODE.items()}
 
 
 def get_crawl_queue_session_factory():
@@ -54,12 +65,44 @@ def _target_crawl_options(
     payload: CrawlBatchCreateRequest, target: CrawlTargetRequest
 ) -> dict:
     date_from, date_to = _target_date_range(payload, target)
+    crawl_mode = target.crawl_mode or payload.crawl_mode
+    coverage = target.coverage or _CRAWL_MODE_TO_COVERAGE.get(
+        crawl_mode, "date_window" if date_from or date_to else "delta"
+    )
+    legacy_budget = target.effective_review_limit or payload.max_reviews_to_collect
+    if coverage == "date_window":
+        if target.budget is not None:
+            raise CrawlQueueError(
+                400, "INVALID_PARAMETER", "budget is not allowed for date_window coverage."
+            )
+        if date_from is None and date_to is None:
+            raise CrawlQueueError(
+                400,
+                "INVALID_PARAMETER",
+                "date_window coverage requires date_from or date_to.",
+            )
+        if legacy_budget is not None:
+            logger.info("Ignoring legacy review limit for date_window coverage.")
+        budget = None
+    else:
+        budget = target.budget or legacy_budget
+    if coverage == "full_backfill" and (date_from is not None or date_to is not None):
+        raise CrawlQueueError(
+            400,
+            "INVALID_PARAMETER",
+            "full_backfill coverage does not accept date bounds.",
+        )
+    # crawl_mode lama tetap disimpan untuk pembaca lama, tapi harus sejalan
+    # dengan coverage; coverage eksplisit yang menang.
+    if target.coverage or not crawl_mode:
+        crawl_mode = _COVERAGE_TO_CRAWL_MODE[coverage]
     return {
-        "crawl_mode": target.crawl_mode or payload.crawl_mode,
-        "max_reviews_to_collect": (
-            target.effective_review_limit or payload.max_reviews_to_collect
-        ),
+        "coverage": coverage,
+        "budget": budget,
+        "crawl_mode": crawl_mode,
+        "max_reviews_to_collect": budget,
         "scan_limit": target.scan_limit or payload.scan_limit,
+        "review_quota_remaining": payload.review_quota_remaining,
         "dry_run": payload.dry_run,
         "date_from": date_from,
         "date_to": date_to,
@@ -78,7 +121,7 @@ def _target_crawl_options(
         404: {"model": IntegrationErrorResponse},
         409: {"model": IntegrationErrorResponse},
     },
-    summary="Queue tenant-scoped crawl jobs without waiting for Selenium",
+    summary="Queue tenant-scoped Apify crawl jobs",
 )
 def enqueue_crawl_jobs(
     payload: CrawlBatchCreateRequest,
@@ -97,6 +140,19 @@ def enqueue_crawl_jobs(
     location_targets = [t for t in payload.targets if t.kind == "location"]
     competitor_targets = [t for t in payload.targets if t.kind == "competitor"]
     try:
+        location_options = {
+            target.onebox_location_id: _target_crawl_options(payload, target)
+            for target in location_targets
+        }
+        competitor_specs = []
+        for target in competitor_targets:
+            options = _target_crawl_options(payload, target)
+            competitor_specs.append({
+                "onebox_target_id": target.onebox_target_id,
+                "external_place_id": (target.external_place_id or "").strip(),
+                "target_review_count": options["budget"],
+                **options,
+            })
         batch, _created = service.enqueue(
             company_id=principal.company_id,
             client_id=principal.client_id,
@@ -105,14 +161,11 @@ def enqueue_crawl_jobs(
                 target.onebox_location_id for target in location_targets
             ],
             target_review_counts={
-                target.onebox_location_id: (
-                    target.effective_review_limit or payload.max_reviews_to_collect
-                )
+                target.onebox_location_id: location_options[
+                    target.onebox_location_id
+                ]["budget"]
                 for target in location_targets
-                if (
-                    target.effective_review_limit is not None
-                    or payload.max_reviews_to_collect is not None
-                )
+                if location_options[target.onebox_location_id]["budget"] is not None
             },
             target_date_ranges={
                 target.onebox_location_id: _target_date_range(payload, target)
@@ -128,26 +181,8 @@ def enqueue_crawl_jobs(
                 for target in location_targets
                 if target.sort_by and target.sort_by != "newest"
             },
-            target_crawl_options={
-                target.onebox_location_id: _target_crawl_options(payload, target)
-                for target in location_targets
-            },
-            competitor_targets=[
-                {
-                    "external_place_id": (target.external_place_id or "").strip(),
-                    "target_review_count": (
-                        target.effective_review_limit
-                        or payload.max_reviews_to_collect
-                    ),
-                    "date_from": _target_date_range(payload, target)[0],
-                    "date_to": _target_date_range(payload, target)[1],
-                    "sort_by": target.sort_by,
-                    "crawl_mode": target.crawl_mode or payload.crawl_mode,
-                    "scan_limit": target.scan_limit or payload.scan_limit,
-                    "dry_run": payload.dry_run,
-                }
-                for target in competitor_targets
-            ],
+            target_crawl_options=location_options,
+            competitor_targets=competitor_specs,
             slot=payload.slot,
         )
     except CrawlQueueError as exc:
@@ -182,6 +217,80 @@ def list_crawl_batches(
     return {
         "data": data,
         "meta": {"api_version": API_VERSION, "request_id": request_id, "limit": limit},
+    }
+
+
+def _probe_service(session_factory) -> ReviewCountProbe:
+    return ReviewCountProbe(session_factory, get_settings())
+
+
+def _target_not_found(onebox_location_id: int) -> IntegrationRequestError:
+    return IntegrationRequestError(
+        404,
+        "TARGET_NOT_FOUND",
+        f"Location {onebox_location_id} is absent or outside this tenant.",
+    )
+
+
+# /estimate dan /probe HARUS dideklarasikan sebelum "/{batch_id}", kalau tidak
+# keduanya tertangkap sebagai batch_id.
+@router.get(
+    "/estimate",
+    responses={
+        401: {"model": IntegrationErrorResponse},
+        403: {"model": IntegrationErrorResponse},
+        404: {"model": IntegrationErrorResponse},
+    },
+    summary="Estimate how many reviews a cabang has, without calling Google",
+)
+def estimate_crawl(
+    request: Request,
+    onebox_location_id: int = Query(gt=0),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+    principal: ServicePrincipal = Depends(require_service_principal),
+    session_factory=Depends(get_crawl_queue_session_factory),
+) -> dict:
+    _require_scope(principal, "crawl:read")
+    request_id = _request_id(request, x_request_id)
+    try:
+        data = _probe_service(session_factory).estimate(
+            principal.company_id, onebox_location_id
+        )
+    except ReviewTargetNotFound as exc:
+        raise _target_not_found(onebox_location_id) from exc
+    return {
+        "data": data,
+        "meta": {"api_version": API_VERSION, "request_id": request_id},
+    }
+
+
+@router.get(
+    "/probe",
+    responses={
+        401: {"model": IntegrationErrorResponse},
+        403: {"model": IntegrationErrorResponse},
+        404: {"model": IntegrationErrorResponse},
+    },
+    summary="Ask Google whether a cabang's review count changed",
+)
+def probe_review_count(
+    request: Request,
+    onebox_location_id: int = Query(gt=0),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+    principal: ServicePrincipal = Depends(require_service_principal),
+    session_factory=Depends(get_crawl_queue_session_factory),
+) -> dict:
+    _require_scope(principal, "crawl:enqueue")
+    request_id = _request_id(request, x_request_id)
+    try:
+        data = _probe_service(session_factory).probe(
+            principal.company_id, onebox_location_id
+        )
+    except ReviewTargetNotFound as exc:
+        raise _target_not_found(onebox_location_id) from exc
+    return {
+        "data": data,
+        "meta": {"api_version": API_VERSION, "request_id": request_id},
     }
 
 

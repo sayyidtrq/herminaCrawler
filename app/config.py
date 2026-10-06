@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -28,30 +28,48 @@ REVIEW_SOURCE_MODES = {
     "google_places",
     "google_business_profile",
     "third_party",
-    "selenium",
+    "apify",
 }
+AnalysisProvider = Literal["absa", "openai", "jev"]
 
 # Fields that go through the old _as_int/_as_bool/_as_float/_as_optional_int/
 # _as_list helpers, all of which treat a blank env value as absent (use the
 # default). Fields using plain os.getenv(name, default) with no such guard
 # (app_name, log_level, review_source_mode, etc.) are deliberately NOT in
 # this list - a blank value there stays blank, exactly like before.
+# Batas ulasan per penarikan (spec D11). Dipakai juga validator target
+# cabang/kompetitor/worklist, yang berjalan tanpa objek Settings.
+DEFAULT_REVIEW_LIMIT = 5_000
+MAX_REVIEW_LIMIT = 100_000
+
 _BLANK_USES_DEFAULT_FIELDS = (
     "export_dir",
     "google_maps_api_key",
     "gemini_api_key",
+    "openai_api_key",
+    "openai_model",
+    "typesafe_api_key",
+    "absa_confidence_threshold",
+    "absa_timeout_seconds",
+    "typesafe_timeout_seconds",
     "onebox_base_url",
     "onebox_service_email",
     "onebox_service_password",
     "fetch_limit_per_location",
     "fetch_timeout_seconds",
     "fetch_max_retry",
-    "selenium_headless",
-    "selenium_default_target_reviews",
-    "selenium_max_target_reviews",
-    "selenium_scroll_delay_seconds",
-    "selenium_max_scroll_attempts",
-    "selenium_wait_timeout_seconds",
+    "crawl_max_target_reviews",
+    "crawl_default_review_limit",
+    "crawl_completeness_tolerance",
+    "crawl_watermark_margin_days",
+    "crawl_safety_sweep_days",
+    "crawl_source_poll_seconds",
+    "apify_backfill_deadline_seconds",
+    "apify_actor_id",
+    "apify_run_timeout_seconds",
+    "apify_poll_interval_seconds",
+    "redis_url",
+    "apify_account_exhausted_ttl_seconds",
     "analysis_batch_size",
     "page_size",
     "show_raw_payload",
@@ -83,6 +101,9 @@ _INT_FLOORS = {
     "crawl_worker_retry_base_seconds": 1,
     "analysis_llm_max_retries": 0,
     "analysis_circuit_breaker_threshold": 0,
+    "absa_timeout_seconds": 1,
+    "typesafe_timeout_seconds": 1,
+    "apify_account_exhausted_ttl_seconds": 60,
 }
 
 
@@ -114,16 +135,38 @@ class Settings(BaseModel):
     local_llm_base_url: str = "http://192.168.1.115:11434/v1/"
     local_llm_api_key: str | None = "ollama"
     local_llm_model: str = "qwen2.5:7b"
+    analysis_provider: AnalysisProvider = "absa"
+    auto_analyze_on_crawl: bool = True
+    absa_base_url: str = "http://host.docker.internal:9090/api"
+    absa_engine_version: str = "v14"
+    absa_profile: str = "maps_high_recall"
+    absa_confidence_threshold: float = 0.1
+    absa_timeout_seconds: int = 300
+    typesafe_base_url: str = "https://api.typesafe.ai"
+    typesafe_api_key: str | None = None
+    typesafe_model: str = "jev-latest"
+    typesafe_timeout_seconds: int = 300
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_key: str | None = None
+    openai_model: str | None = None
     fetch_limit_per_location: int = 50
     fetch_timeout_seconds: int = 30
     fetch_max_retry: int = 3
-    selenium_headless: bool = False
-    selenium_default_target_reviews: int = 100
-    selenium_max_target_reviews: int = 300
-    selenium_scroll_delay_seconds: float = 1.0
-    selenium_max_scroll_attempts: int = 400
-    selenium_wait_timeout_seconds: int = 20
-    selenium_user_data_dir: Path | None = Path(".selenium-profile")
+    crawl_max_target_reviews: int = MAX_REVIEW_LIMIT
+    crawl_default_review_limit: int = DEFAULT_REVIEW_LIMIT
+    crawl_completeness_tolerance: float = 0.98
+    crawl_watermark_margin_days: int = 1
+    crawl_safety_sweep_days: int = 30
+    # Run Apify diparkir (spec CS-3): worker tidak menunggu run selesai.
+    crawl_async_source_runs: bool = True
+    crawl_source_poll_seconds: int = 30
+    apify_backfill_deadline_seconds: int = 7200
+    apify_api_tokens: Annotated[list[str], NoDecode] = []
+    apify_actor_id: str = "web_wanderer/google-reviews-scraper"
+    apify_run_timeout_seconds: int = 300
+    apify_poll_interval_seconds: int = 5
+    redis_url: str | None = None
+    apify_account_exhausted_ttl_seconds: int = 1800
     analysis_batch_size: int = 20
     prompt_version: str = "v1"
     page_size: int = 20
@@ -213,6 +256,13 @@ class _EnvSettings(Settings, BaseSettings):
             return tuple(items) if items else DEFAULT_CORS_ALLOWED_ORIGINS
         return value
 
+    @field_validator("apify_api_tokens", mode="before")
+    @classmethod
+    def _parse_apify_api_tokens(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return [token.strip() for token in value.split(",") if token.strip()]
+        return value or []
+
     @field_validator("local_llm_api_key", mode="before")
     @classmethod
     def _blank_local_llm_api_key_is_none(cls, value: Any) -> Any:
@@ -223,21 +273,19 @@ class _EnvSettings(Settings, BaseSettings):
             return None
         return value
 
-    @field_validator("selenium_user_data_dir", mode="before")
-    @classmethod
-    def _blank_selenium_profile_is_none(cls, value: Any) -> Any:
-        # Absent -> default ".selenium-profile". Explicitly blank -> None
-        # (profile dir disabled), matching Path(value) if value else None.
-        if isinstance(value, str) and not value.strip():
-            return None
-        return value
-
     @field_validator(
         "app_name",
         "google_places_language_code",
         "google_places_region_code",
         "local_llm_base_url",
         "local_llm_model",
+        "absa_base_url",
+        "absa_engine_version",
+        "absa_profile",
+        "typesafe_base_url",
+        "typesafe_model",
+        "openai_base_url",
+        "apify_actor_id",
         "prompt_version",
         mode="after",
     )
@@ -255,6 +303,14 @@ class _EnvSettings(Settings, BaseSettings):
     def _normalize_gemini_mode(cls, value: str) -> str:
         return value.strip().lower()
 
+    @field_validator("analysis_provider", mode="after")
+    @classmethod
+    def _validate_analysis_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"absa", "openai", "jev"}:
+            raise ValueError("ANALYSIS_PROVIDER must be absa, openai, or jev.")
+        return normalized
+
     @field_validator("gemini_model", mode="after")
     @classmethod
     def _strip_gemini_model(cls, value: str) -> str:
@@ -267,7 +323,7 @@ class _EnvSettings(Settings, BaseSettings):
         if normalized not in REVIEW_SOURCE_MODES:
             raise ValueError(
                 "REVIEW_SOURCE_MODE must be mock, google_places, "
-                "google_business_profile, third_party, or selenium."
+                "google_business_profile, third_party, or apify."
             )
         return normalized
 
@@ -276,33 +332,15 @@ class _EnvSettings(Settings, BaseSettings):
     def _resolve_export_dir(cls, value: Path) -> Path:
         return value if value.is_absolute() else BASE_DIR / value
 
-    @field_validator("selenium_user_data_dir", mode="after")
-    @classmethod
-    def _resolve_selenium_user_data_dir(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value if value.is_absolute() else BASE_DIR / value
-
-    @field_validator("selenium_scroll_delay_seconds", mode="after")
-    @classmethod
-    def _floor_scroll_delay(cls, value: float) -> float:
-        # Lantai 0.5 detik, bukan 2. Nol tidak diizinkan: kartu perlu waktu
-        # dimuat setelah digulir, dan menggulir lebih cepat dari itu justru
-        # menghasilkan lebih sedikit ulasan.
-        return max(0.5, value)
-
-    @field_validator("selenium_max_scroll_attempts", mode="after")
-    @classmethod
-    def _clamp_max_scroll_attempts(cls, value: int) -> int:
-        # Plafon 1000, bukan 100. Rentang tanggal ke periode lampau harus
-        # menembus ratusan ulasan yang lebih baru sebelum sampai ke
-        # jendelanya; dengan plafon 100 crawl berhenti jauh sebelum itu.
-        return min(1000, max(1, value))
-
     @field_validator("analysis_llm_retry_backoff_seconds", mode="after")
     @classmethod
     def _floor_backoff_seconds(cls, value: float) -> float:
         return max(0.0, value)
+
+    @field_validator("absa_confidence_threshold", mode="after")
+    @classmethod
+    def _clamp_absa_confidence_threshold(cls, value: float) -> float:
+        return min(1.0, max(0.0, value))
 
     @field_validator("analysis_llm_concurrency", mode="after")
     @classmethod

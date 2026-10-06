@@ -1,4 +1,4 @@
-"""Projection and delta-sync pull for the OneBox v1 integration contract.
+"""Projection and delta-sync pull for the OneBox integration contract.
 
 Separate from ``ReviewService`` on purpose. ReviewService serves the FE and is
 free to change shape; this one is pinned to the published contract. The
@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import get_settings
 from app.db.models import Location, Review, ReviewAnalysis
 from app.db.session import get_session_factory
+from app.services.analysis_service import ALLOWED_CATEGORIES
 from app.utils.integration_cursor import (
     CURSOR_VERSION,
     CursorPosition,
@@ -33,6 +34,31 @@ from app.utils.integration_cursor import (
 # Lower bound for a consumer that has never synced. Exclusive, and every real id
 # is >= 1, so nothing is missed.
 EPOCH = CursorPosition(sync_updated_at=datetime(1970, 1, 1, tzinfo=timezone.utc), id=0)
+
+HISTORICAL_CATEGORY_ALIASES = {
+    "customer service": "customer_service",
+    "service quality": "service_quality",
+    "waiting time": "waiting_time",
+    "doctor_service": "professional_service",
+    "nurse_service": "staff_service",
+    "billing": "billing_payment",
+    "pharmacy": "availability",
+    "emergency_room": "safety_security",
+    "inpatient": "facility",
+    "booking_system": "booking_ordering",
+    "staff_communication": "staff_service",
+    "security": "safety_security",
+    "food": "food_beverage",
+    "general": "other",
+}
+
+
+def _contract_category(value: str | None) -> str | None:
+    if value is None:
+        return None
+    category = value.strip().lower()
+    category = HISTORICAL_CATEGORY_ALIASES.get(category, category)
+    return category if category in ALLOWED_CATEGORIES else "other"
 
 
 class IntegrationRequestError(Exception):
@@ -89,19 +115,18 @@ class IntegrationReviewService:
         updated_since: datetime | None = None,
         location_id: int | None = None,
     ) -> dict:
-        decoded = self._resolve_cursor(cursor, updated_since, location_id)
-        # A follow-up page may send the cursor alone; the filter it was opened
-        # with lives inside it, so it survives without the consumer resending it.
-        if decoded is not None:
-            location_id = decoded.location_id
-
         with self.session_factory() as session:
-            self._assert_location_in_tenant(session, location_id)
+            canonical_location_id = self._assert_location_in_tenant(session, location_id)
+            decoded = self._resolve_cursor(cursor, updated_since, canonical_location_id)
+            # A follow-up page may send the cursor alone; the filter it was opened
+            # with lives inside it, so it survives without the consumer resending it.
+            if decoded is not None:
+                canonical_location_id = decoded.location_id
 
             lower, upper = self._resolve_bounds(
-                session, decoded, updated_since, location_id
+                session, decoded, updated_since, canonical_location_id
             )
-            rows = self._fetch_page(session, lower, upper, location_id, limit)
+            rows = self._fetch_page(session, lower, upper, canonical_location_id, limit)
 
         has_more = len(rows) > limit
         rows = rows[:limit]
@@ -112,7 +137,7 @@ class IntegrationReviewService:
         if has_more:
             last = rows[-1][0]
             next_cursor = self._encode(
-                location_id,
+                canonical_location_id,
                 lower=CursorPosition(_as_utc(last.sync_updated_at), last.id),
                 upper=upper,
             )
@@ -120,7 +145,7 @@ class IntegrationReviewService:
             # Snapshot drained. The checkpoint's lower == upper, which is how the
             # next cycle recognises it should open a fresh upper bound from here
             # instead of replaying this exhausted snapshot.
-            checkpoint_cursor = self._encode(location_id, lower=upper, upper=upper)
+            checkpoint_cursor = self._encode(canonical_location_id, lower=upper, upper=upper)
 
         return {
             "items": items,
@@ -185,21 +210,25 @@ class IntegrationReviewService:
 
     def _assert_location_in_tenant(
         self, session: Session, location_id: int | None
-    ) -> None:
+    ) -> int | None:
         if location_id is None:
-            return
-        owned = session.scalar(
+            return None
+        loc_id = session.scalar(
             select(Location.id).where(
-                Location.id == location_id,
                 Location.company_id == self.company_id,
+                or_(
+                    Location.id == location_id,
+                    Location.onebox_location_id == location_id,
+                ),
             )
         )
         # Same 404 whether the location is absent or owned by another tenant:
         # distinguishing them would confirm its existence.
-        if owned is None:
+        if loc_id is None:
             raise IntegrationRequestError(
                 404, "LOCATION_NOT_FOUND", "Location not found."
             )
+        return loc_id
 
     def _current_upper(
         self, session: Session, location_id: int | None
@@ -258,7 +287,7 @@ class IntegrationReviewService:
     ) -> list:
         latest = _latest_analysis_subquery()
         statement = (
-            select(Review, Location.branch_name, ReviewAnalysis)
+            select(Review, Location.branch_name, ReviewAnalysis, Location.onebox_location_id)
             .join(Location, Location.id == Review.location_id)
             .outerjoin(latest, latest.c.review_id == Review.id)
             .outerjoin(ReviewAnalysis, ReviewAnalysis.id == latest.c.analysis_id)
@@ -300,10 +329,12 @@ class IntegrationReviewService:
         review: Review = row[0]
         branch_name: str = row[1]
         analysis: ReviewAnalysis | None = row[2]
+        onebox_location_id: int | None = row[3]
 
         return {
             "id": review.id,
             "location_id": review.location_id,
+            "onebox_location_id": onebox_location_id,
             "location": branch_name,
             "source": review.source,
             "external_place_id": review.external_place_id,
@@ -311,9 +342,16 @@ class IntegrationReviewService:
             "review_hash": review.review_hash,
             "reviewer_name": review.reviewer_name,
             "reviewer_profile_url": review.reviewer_profile_url,
+            "review_url": review.review_url,
+            "review_photo_urls": review.review_photo_urls or [],
             "rating": review.rating,
             "review_text": review.review_text,
             "review_time": _as_utc(review.review_time),
+            "review_time_precision": review.review_time_precision,
+            "date_approximate": review.review_time_precision
+            in {"week", "month", "year"},
+            "is_edited": bool(review.is_edited),
+            "edited_at": _as_utc(review.edited_at),
             "owner_response_text": review.owner_response_text,
             "owner_response_time": _as_utc(review.owner_response_time),
             "updated_at": _as_utc(review.updated_at),
@@ -326,7 +364,9 @@ class IntegrationReviewService:
                 if analysis and analysis.sentiment_score is not None
                 else None
             ),
-            "issue_category": analysis.issue_category if analysis else None,
+            "issue_category": (
+                _contract_category(analysis.issue_category) if analysis else None
+            ),
             "urgency": analysis.urgency if analysis else None,
             "summary": analysis.summary if analysis else None,
             "recommended_action": analysis.recommended_action if analysis else None,
@@ -334,7 +374,7 @@ class IntegrationReviewService:
             "is_potential_viral": (
                 bool(analysis.is_potential_viral) if analysis else False
             ),
-            "is_patient_safety_issue": (
-                bool(analysis.is_patient_safety_issue) if analysis else False
+            "is_safety_issue": (
+                bool(analysis.is_safety_issue) if analysis else False
             ),
         }

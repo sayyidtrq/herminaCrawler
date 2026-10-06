@@ -7,7 +7,6 @@ from app.services.settings_service import SettingsService
 from apps.api.app_api.serializers import to_jsonable
 from apps.api.app_api.service_auth import ServicePrincipal, require_service_principal
 
-
 router = APIRouter(tags=["settings"])
 
 
@@ -15,7 +14,7 @@ router = APIRouter(tags=["settings"])
     "/settings",
     summary="Konfigurasi runtime (non-rahasia)",
     description="Mengembalikan konfigurasi publik aplikasi dan status ketersediaan API key (nilai key selalu di-masking).",
-    responses={200: {"content": {"application/json": {"example": {"app_env": "local", "app_name": "Review System", "review_source_mode": "selenium", "page_size": 20, "google_maps_api_key": "****", "google_maps_api_key_configured": True}}}}},
+    responses={200: {"content": {"application/json": {"example": {"app_env": "local", "app_name": "Review System", "review_source_mode": "apify", "page_size": 20, "google_maps_api_key": "****", "google_maps_api_key_configured": True}}}}},
 )
 def get_public_settings(principal: ServicePrincipal = Depends(require_service_principal)) -> dict:
     settings = get_settings()
@@ -32,20 +31,19 @@ def get_public_settings(principal: ServicePrincipal = Depends(require_service_pr
             "google_places_language_code": settings.google_places_language_code,
             "google_places_region_code": settings.google_places_region_code,
             "local_llm_model": settings.local_llm_model,
+            "analysis_provider": settings.analysis_provider,
+            "available_analysis_providers": ["absa", "openai"],
+            "absa_base_url": settings.absa_base_url,
+            "absa_engine_version": settings.absa_engine_version,
+            "absa_profile": settings.absa_profile,
+            "openai_model": settings.openai_model,
             "fetch_limit_per_location": settings.fetch_limit_per_location,
             "fetch_timeout_seconds": settings.fetch_timeout_seconds,
             "fetch_max_retry": settings.fetch_max_retry,
-            "selenium_headless": settings.selenium_headless,
-            "selenium_default_target_reviews": (
-                settings.selenium_default_target_reviews
-            ),
-            "selenium_max_target_reviews": settings.selenium_max_target_reviews,
-            "selenium_scroll_delay_seconds": settings.selenium_scroll_delay_seconds,
-            "selenium_max_scroll_attempts": settings.selenium_max_scroll_attempts,
-            "selenium_wait_timeout_seconds": (
-                settings.selenium_wait_timeout_seconds
-            ),
-            "selenium_user_data_dir": settings.selenium_user_data_dir,
+            "crawl_max_target_reviews": settings.crawl_max_target_reviews,
+            "apify_actor_id": settings.apify_actor_id,
+            "apify_run_timeout_seconds": settings.apify_run_timeout_seconds,
+            "apify_poll_interval_seconds": settings.apify_poll_interval_seconds,
             "analysis_batch_size": settings.analysis_batch_size,
             "prompt_version": settings.prompt_version,
             "page_size": settings.page_size,
@@ -54,6 +52,7 @@ def get_public_settings(principal: ServicePrincipal = Depends(require_service_pr
             "local_llm_api_key": local_llm_key["masked"],
             "google_maps_api_key_configured": review_source_key["found"],
             "local_llm_api_key_configured": local_llm_key["found"],
+            "openai_api_key_configured": bool(settings.openai_api_key),
         }
     )
 
